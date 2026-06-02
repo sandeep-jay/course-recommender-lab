@@ -1,0 +1,32 @@
+# Fitted models, embedding caches, ANN indexes
+artifacts/
+*.npz
+
+# Processed data (regenerable from data/raw via scripts/prepare_data.py)
+data/processed/
+
+# Secrets / environment
+.env
+.env.*
+
+# Claude Code — machine-specific approvals
+.claude/settings.local.json
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# Tooling caches
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# OS / editor
+.DS_Store
+.ipynb_checkpoints/
