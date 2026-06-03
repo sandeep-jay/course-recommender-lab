@@ -5,27 +5,25 @@
 
 ## Current state
 
-**Phase 0 (scaffold & data) is complete and green.** The package `courserec`
-exists under `src/` with `config.py` (paths, `RANDOM_SEED`, `NULL_TOKEN`),
-`interfaces.py` (`Rec`, `Recommender` ABC), and `data.py` (full clean pipeline).
-`scripts/prepare_data.py` writes `data/processed/courses.parquet` — **11,073
-unique courses, 0 `"-"` cells, 242 subjects, 1,080 cross-listed**. `pytest` =
-18 passed; `ruff`/`black` clean. Open decisions resolved: canonical CSV path is
-`data/raw/courses-report_2026-06-02.csv`, package name is `course-rec-lab`;
-`.claude/` and `data/` are gitignored. All committed on `main` (not pushed);
-the one open thread is starting Phase 1.
+**Phase 1 (lexical baselines + harness + leaderboard) is complete and green.**
+On top of the Phase 0 pipeline (package `courserec`, `config.py`/`interfaces.py`/
+`data.py`, **11,073 unique courses**), the lexical rung now exists:
+`recommenders/lexical.py` (`TfidfRecommender`, `BM25Recommender` with
+`artifacts/<name>/` caching), `eval.py` (cross-listing + same-subject lenses,
+Recall/Precision/NDCG@{5,10,20}, MAP, MRR, coverage/diversity/novelty, bootstrap
+CIs on NDCG@10), and `scripts/run_eval.py` → `results/leaderboard.{md,csv}`.
+`pytest` = **42 passed**; `ruff`/`black` clean. First leaderboard has **5 rows
+with CIs** (acceptance met): all configs sit at NDCG@10 ≈ 0.95–0.96 with fully
+overlapping CIs — no significant winner, as the methodology predicts for
+near-identical cross-listed twins. `scikit-learn==1.6.1`/`scipy==1.15.1` pinned.
 
 ## Next task
 
-**Phase 1 — Lexical baselines + harness + leaderboard** (recommender_plan.md §5):
-1. `src/courserec/recommenders/lexical.py` — TF-IDF+cosine and BM25, both
-   subclassing `Recommender`; small config sweep (stopwords, n-grams, title weight).
-2. `src/courserec/eval.py` — cross-listing + same-subject lenses, metrics
-   (Recall/Precision/MRR/MAP/NDCG@{5,10,20}, coverage, diversity, novelty),
-   bootstrap CIs on NDCG@10.
-3. `scripts/run_eval.py` — fit all, score all, write `results/leaderboard.{md,csv}`.
-4. Contract tests per technique (seed excluded, sorted, ≤k, sparse-text safe).
-   *Accept:* one command produces a leaderboard with ≥2 rows and CIs.
+**Phase 2 — Topic models** (recommender_plan.md §2.2, §5): `recommenders/topics.py`
+with LSA (TruncatedSVD on TF-IDF), NMF, and LDA; recommend by similarity in
+topic space; persist topic–term tables for interpretation. They drop straight
+into the existing harness — add each to `build_recommenders()` in `run_eval.py`
+and the leaderboard grows. Contract test per technique.
 
 ## Open decisions
 
@@ -37,7 +35,16 @@ the one open thread is starting Phase 1.
 
 None.
 
+## Known gaps (deliberate, flagged per plan)
+
+- **Free-text eval has no ground truth yet.** `recommend_by_text` works but is
+  unscored — needs the hand-built judged-query set (plan §3 lens 3). Flag, don't
+  silently omit.
+- `docs/TRADEOFFS.md` / `docs/RESULTS.md` (cross-cutting per-phase docs) not yet
+  written.
+
 ## First task for next session
 
-Implement `src/courserec/recommenders/lexical.py` (TF-IDF + cosine, then BM25)
-against the `Recommender` interface, with a contract test.
+Implement `src/courserec/recommenders/topics.py` (LSA first — TruncatedSVD over
+the TF-IDF matrix, cosine in topic space), subclassing `Recommender`, with a
+contract test; then add it to the leaderboard sweep.

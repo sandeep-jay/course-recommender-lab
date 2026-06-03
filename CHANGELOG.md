@@ -6,6 +6,29 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 ## [Unreleased]
 
 ### Added
+- **Phase 1 — lexical baselines + harness + leaderboard.**
+  - `src/courserec/recommenders/lexical.py` — `TfidfRecommender` (cosine over
+    L2-normalized TF-IDF) and `BM25Recommender` (Okapi BM25 folded into a
+    precomputed sparse doc-term weight matrix), sharing a base that handles
+    title-weighting, sparse-text fallback, seed exclusion, and `artifacts/<name>/`
+    persistence keyed by a corpus+config fingerprint (load if present).
+  - `src/courserec/eval.py` — cross-listing ground truth (resolves the
+    space-stripped `cross_listed` references; 1,072 in-catalog seeds) and
+    same-subject sanity floor; Recall/Precision/NDCG@{5,10,20}, MAP, MRR,
+    catalog coverage, intra-list diversity (in a technique-agnostic reference
+    space), novelty; percentile bootstrap CIs on NDCG@10.
+  - `scripts/run_eval.py` — fits the lexical sweep (stopwords/n-grams/title
+    weight), scores all, writes `results/leaderboard.{md,csv}` sorted by NDCG@10
+    in one command.
+  - Tests: `tests/test_lexical.py` (contract: seed excluded, sorted, ≤k,
+    sparse-text safe, twin ranks first, artifact cache round-trips) and
+    `tests/test_eval.py` (truth resolution, hand-checked metrics, bootstrap,
+    end-to-end). Shared synthetic catalog in `tests/conftest.py`. Suite: 42 tests.
+  - First leaderboard: all lexical configs land at NDCG@10 ≈ 0.95–0.96 with
+    fully overlapping 95% CIs — no significant winner, exactly as the methodology
+    warns (cross-listed twins share near-identical text). Real signal is latency
+    (BM25 ~3 ms/query vs bigram TF-IDF ~33 ms).
+  - Pinned `scikit-learn==1.6.1` and `scipy==1.15.1` in `pyproject.toml`.
 - **Phase 0 — scaffold & data.** `pyproject.toml` (package `course-rec-lab`,
   pinned pandas/numpy/pyarrow + dev tools, ruff/black/pytest config); `src/courserec/`
   with `config.py` (paths, `RANDOM_SEED=42`, `NULL_TOKEN`), `interfaces.py`
