@@ -11,11 +11,9 @@ exists under `src/` with `config.py` (paths, `RANDOM_SEED`, `NULL_TOKEN`),
 `scripts/prepare_data.py` writes `data/processed/courses.parquet` — **11,073
 unique courses, 0 `"-"` cells, 242 subjects, 1,080 cross-listed**. `pytest` =
 18 passed; `ruff`/`black` clean. Open decisions resolved: canonical CSV path is
-`data/raw/courses-report_2026-06-02.csv`, package name is `course-rec-lab`.
-
-Both `.claude/` and `data/` are now gitignored and untracked (staged as deleted,
-**not yet committed**). Tracked content this session is not committed either —
-the Phase-0 commit is still pending.
+`data/raw/courses-report_2026-06-02.csv`, package name is `course-rec-lab`;
+`.claude/` and `data/` are gitignored. All committed on `main` (not pushed);
+the one open thread is starting Phase 1.
 
 ## Next task
 
@@ -41,5 +39,5 @@ None.
 
 ## First task for next session
 
-Commit Phase 0 if not already done, then implement `src/courserec/recommenders/lexical.py`
-(TF-IDF + BM25) against the `Recommender` interface, with a contract test.
+Implement `src/courserec/recommenders/lexical.py` (TF-IDF + cosine, then BM25)
+against the `Recommender` interface, with a contract test.
