@@ -1,30 +1,39 @@
-# HANDOFF — course-rec-bert
+# HANDOFF — course-rec-lab
 
 > State only. For what happened this (or any prior) session see [CHANGELOG.md](CHANGELOG.md).
 > Narrative belongs there, not here.
 
 ## Current state
 
-Claude Code setup is now project-correct: lakehouse leftovers purged, CLAUDE.md +
-rules + commands retargeted to the content-based course recommender, and git is
-initialized (branch `main`, nothing committed by the protocol yet — the initial
-commit happens below). No application code, tests, scripts, or data pipeline exist
-yet; the contract is [docs/roadmap/recommender_plan.md](docs/roadmap/recommender_plan.md).
+**Phase 0 (scaffold & data) is complete and green.** The package `courserec`
+exists under `src/` with `config.py` (paths, `RANDOM_SEED`, `NULL_TOKEN`),
+`interfaces.py` (`Rec`, `Recommender` ABC), and `data.py` (full clean pipeline).
+`scripts/prepare_data.py` writes `data/processed/courses.parquet` — **11,073
+unique courses, 0 `"-"` cells, 242 subjects, 1,080 cross-listed**. `pytest` =
+18 passed; `ruff`/`black` clean. Open decisions resolved: canonical CSV path is
+`data/raw/courses-report_2026-06-02.csv`, package name is `course-rec-lab`.
+
+Both `.claude/` and `data/` are now gitignored and untracked (staged as deleted,
+**not yet committed**). Tracked content this session is not committed either —
+the Phase-0 commit is still pending.
 
 ## Next task
 
-Resolve the data-path discrepancy, then build Phase 0: move
-`data/courses-report.2026-06-02.csv` → `data/raw/courses-report_2026-06-02.csv`
-(or pick one canonical path and update CLAUDE.md + the plan), then create
-`pyproject.toml`, `src/courserec/{interfaces.py,data.py}`, `scripts/prepare_data.py`,
-and `tests/` per recommender_plan.md §5 Phase 0.
+**Phase 1 — Lexical baselines + harness + leaderboard** (recommender_plan.md §5):
+1. `src/courserec/recommenders/lexical.py` — TF-IDF+cosine and BM25, both
+   subclassing `Recommender`; small config sweep (stopwords, n-grams, title weight).
+2. `src/courserec/eval.py` — cross-listing + same-subject lenses, metrics
+   (Recall/Precision/MRR/MAP/NDCG@{5,10,20}, coverage, diversity, novelty),
+   bootstrap CIs on NDCG@10.
+3. `scripts/run_eval.py` — fit all, score all, write `results/leaderboard.{md,csv}`.
+4. Contract tests per technique (seed excluded, sorted, ≤k, sparse-text safe).
+   *Accept:* one command produces a leaderboard with ≥2 rows and CIs.
 
 ## Open decisions
 
 | Decision | Options | Owner | Due |
 |---|---|---|---|
-| Canonical data path | `data/raw/courses-report_2026-06-02.csv` (per plan) vs current `data/courses-report.2026-06-02.csv` | Sandeep | Phase 0 |
-| Project name | `course-rec-bert` (dir) vs `course-rec-lab` (plan) | Sandeep | Phase 0 |
+| (none open) | — | — | — |
 
 ## Blockers / waiting-on
 
@@ -32,4 +41,5 @@ None.
 
 ## First task for next session
 
-Reconcile the data path (move the CSV into `data/raw/` with the plan's filename) and scaffold Phase 0 per recommender_plan.md §5.
+Commit Phase 0 if not already done, then implement `src/courserec/recommenders/lexical.py`
+(TF-IDF + BM25) against the `Recommender` interface, with a contract test.
