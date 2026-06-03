@@ -5,7 +5,6 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 import pytest
-
 from courserec.eval import (
     average_precision,
     bootstrap_ci,

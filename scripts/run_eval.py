@@ -12,7 +12,6 @@ import logging
 import time
 
 import pandas as pd
-
 from courserec.config import RESULTS_DIR
 from courserec.data import load_processed
 from courserec.eval import (
@@ -23,18 +22,35 @@ from courserec.eval import (
 )
 from courserec.interfaces import Recommender
 from courserec.recommenders.lexical import BM25Recommender, TfidfRecommender
+from courserec.recommenders.topics import (
+    LDARecommender,
+    LSARecommender,
+    NMFRecommender,
+)
 
 logger = logging.getLogger(__name__)
 
 
 def build_recommenders() -> list[Recommender]:
-    """Instantiate the Phase 1 lexical sweep (stopwords/n-grams/title weight)."""
+    """Instantiate the leaderboard sweep across the Phase 1–2 techniques.
+
+    Phase 1 lexical rung (stopwords / n-grams / title weight) plus the Phase 2
+    latent-topic rung (LSA / NMF / LDA at representative topic counts). Every
+    technique conforms to the same interface, so each new entry simply grows the
+    leaderboard.
+    """
     return [
+        # Phase 1 — lexical baselines.
         TfidfRecommender(ngram_max=1, title_weight=1),
         TfidfRecommender(ngram_max=2, title_weight=1),
         TfidfRecommender(ngram_max=1, title_weight=3),
         BM25Recommender(ngram_max=1, title_weight=1),
         BM25Recommender(ngram_max=1, title_weight=3),
+        # Phase 2 — latent topics. LSA tolerates many components; NMF and LDA
+        # favor a smaller, interpretable topic count.
+        LSARecommender(n_topics=200, ngram_max=1, title_weight=1),
+        NMFRecommender(n_topics=50, ngram_max=1, title_weight=1),
+        LDARecommender(n_topics=50, ngram_max=1, title_weight=1),
     ]
 
 

@@ -216,6 +216,25 @@ Each phase has an acceptance test; do not advance until it passes.
 - **Cross-cutting (every phase):** docstrings (idea, math sketch, complexity,
   when it wins/loses), update `docs/TRADEOFFS.md` and `docs/RESULTS.md`.
 
+#### Documentation, comments & logging mandate (every technique, non-negotiable)
+
+This is a *learning* repo: the code is read more than it is run, so legibility is
+a first-class deliverable, not a finishing touch.
+
+- **Module docstring** for every recommender file: the idea in one paragraph, a
+  short math sketch, computational complexity (fit + query), persisted artifacts,
+  and an explicit "when it wins / when it loses" section.
+- **Google-style docstrings** on every public class and method (Args / Returns /
+  Raises), and a one-line docstring on non-trivial private helpers.
+- **Inline comments explain *why*, not *what*** — call out the non-obvious step
+  (the leakage guard, the normalization that turns a dot product into cosine, the
+  cache fingerprint), never narrate self-evident code.
+- **Structured `logging`** (never `print`) at `INFO` for the lifecycle a reader
+  follows when running an eval — fit start with corpus/config shape, cache
+  hit/miss, model-specific diagnostics (e.g. LSA explained variance, NMF
+  reconstruction error, LDA perplexity), a peek at the learned topics, and fit
+  duration. Use `DEBUG` for per-query detail. No PHI, no secrets, ever.
+
 `docs/TRADEOFFS.md` is a matrix: technique × {quality, speed, interpretability,
 cost, cold-start behavior, code complexity, when to prefer it}.
 

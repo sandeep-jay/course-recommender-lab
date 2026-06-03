@@ -5,26 +5,37 @@
 
 ## Current state
 
-**Phase 1 (lexical baselines + harness + leaderboard) is complete and green.**
-On top of the Phase 0 pipeline (package `courserec`, `config.py`/`interfaces.py`/
-`data.py`, **11,073 unique courses**), the lexical rung now exists:
-`recommenders/lexical.py` (`TfidfRecommender`, `BM25Recommender` with
-`artifacts/<name>/` caching), `eval.py` (cross-listing + same-subject lenses,
-Recall/Precision/NDCG@{5,10,20}, MAP, MRR, coverage/diversity/novelty, bootstrap
-CIs on NDCG@10), and `scripts/run_eval.py` → `results/leaderboard.{md,csv}`.
-`pytest` = **42 passed**, `ruff`/`black` clean, leaderboard has **5 rows with
-CIs** — all configs at NDCG@10 ≈ 0.95–0.96 with fully overlapping CIs (no
-significant winner, as predicted for near-identical twins). Open thread:
-`recommend_by_text` works but is unscored — needs the judged-query set
-(plan §3 lens 3) before free-text mode can be trusted.
+**Phase 2 (topic models: LSA / NMF / LDA) is complete and green.** On top of the
+Phase 1 lexical rung + harness, `recommenders/topics.py` now adds three
+latent-topic rankers over a shared `_TopicRecommender` base — `LSARecommender`
+(TruncatedSVD on TF-IDF), `NMFRecommender` (non-negative factorization),
+`LDARecommender` (variational LDA over raw counts) — all scoring by cosine in a
+once-normalized dense topic space, with `artifacts/<name>/` caching (class-aware
+fingerprint), persisted topic–term interpretation tables, and structured logging
+(corpus shape, cache hit/miss, model diagnostics, topic preview) per the new
+documentation/logging mandate in plan §5. `scripts/run_eval.py` fits them too, so
+the leaderboard is now **8 rows**. `pytest` = **71 passed**, `ruff`/`black` clean.
+NMF tops NDCG@10 at 0.960 but its CI overlaps every technique — still no
+significant winner (near-identical twins). Two fixes landed while wiring:
+denormal row-norm guard in `_l2_normalize_rows`, and `np.errstate` to silence
+spurious Apple-Silicon BLAS `matmul` warnings (matrices verified finite).
+
+Open thread unchanged and now more pressing: `recommend_by_text` works for every
+technique but is **still unscored** — the judged-query set (plan §3 lens 3) is the
+only way to show topic models' real payoff (synonym/paraphrase robustness), since
+the cross-listing lens can't distinguish them from lexical.
 
 ## Next task
 
-**Phase 2 — Topic models** (recommender_plan.md §2.2, §5): `recommenders/topics.py`
-with LSA (TruncatedSVD on TF-IDF), NMF, and LDA; recommend by similarity in
-topic space; persist topic–term tables for interpretation. They drop straight
-into the existing harness — add each to `build_recommenders()` in `run_eval.py`
-and the leaderboard grows. Contract test per technique.
+**Phase 3 — Semantic vectors** (recommender_plan.md §2.3, §5): `recommenders/embeddings.py`
+with SBERT (`all-MiniLM-L6-v2` + one larger model) locally, then an API embedding
+model behind the same interface; embedding cache keyed by
+`sha1(model_name + normalized_text)`; FAISS/hnswlib ANN. Must run local-only with
+no API key (API path degrades gracefully). Contract test per technique, add to the
+sweep. **Alternatively**, close the standing gap first: build the judged-query set
+(`scripts/build_judged_queries.py` + a `recommend_by_text` lens in `eval.py`) so
+free-text mode — the thing topic/semantic methods are supposed to win — is finally
+measurable.
 
 ## Open decisions
 
@@ -38,6 +49,9 @@ None.
 
 ## First task for next session
 
-Implement `src/courserec/recommenders/topics.py` (LSA first — TruncatedSVD over
-the TF-IDF matrix, cosine in topic space), subclassing `Recommender`, with a
-contract test; then add it to the leaderboard sweep.
+Decide Phase 3 vs. the judged-query gap (see Next task), then start. If Phase 3:
+scaffold `src/courserec/recommenders/embeddings.py` with the SBERT
+`all-MiniLM-L6-v2` model behind `Recommender`, embedding cache keyed by
+`sha1(model_name + normalized_text)`, cosine over normalized vectors; contract
+test; add to `build_recommenders()`. Confirm `sentence-transformers` is a pinned
+dep first (it is not yet in `pyproject.toml`).
