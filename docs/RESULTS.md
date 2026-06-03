@@ -5,6 +5,49 @@ Findings as each phase lands. The leaderboard itself
 `python scripts/run_eval.py` and never hand-edited; this file is the
 interpretation.
 
+## Phase 2 — topic models (LSA, NMF, LDA)
+
+Same cross-listing lens (1,072 seeds), same primary metric. Topic models drop
+into the existing harness unchanged; the leaderboard is now 8 rows.
+
+| Technique (config) | NDCG@10 | 95% CI | Same-subj@10 | Diversity | Query latency |
+|---|---|---|---|---|---|
+| nmf (k=50) | 0.9604 | [0.9529, 0.9685] | 0.107 | 0.821 | ~0.20 ms |
+| lsa (k=200) | 0.9566 | [0.9489, 0.9642] | 0.186 | 0.713 | ~0.28 ms |
+| lda (k=50) | 0.9521 | [0.9436, 0.9596] | 0.079 | 0.831 | ~0.19 ms |
+
+### What this says
+
+1. **Still no significant winner — and topic models don't beat lexical.** NMF has
+   the highest point estimate of all 8 techniques (0.9604), but its CI overlaps
+   every lexical config and both other topic models. As the methodology predicts
+   (plan §6.2), the cross-listing lens *can't* reward topic models' real strength:
+   twins already share near-identical text, so projecting to `k` topics can only
+   blur a signal lexical methods already nail. This lens validates that the topic
+   recommenders are correct, not that they're better.
+2. **They are the fastest queriers so far.** A dense `k`-topic mat-vec answers in
+   ~0.2 ms — ~15× faster than the lexical sparse mat-vec (~3 ms) — at the cost of
+   a heavier fit (SVD/NMF/LDA factorization; LDA slowest).
+3. **They generalise past exact vocabulary.** NMF and LDA pull far fewer
+   same-subject neighbours into the top-10 (0.08–0.11 vs lexical's ~0.19) and
+   return more diverse lists (diversity 0.71–0.83). The learned topics are
+   coherent on inspection (e.g. an LDA topic ≈ *ai, security, privacy,
+   intelligence*; an NMF topic ≈ *history, political, economic, modern, asia*).
+4. **LDA trails.** Lowest NDCG and weakest same-subject coherence of the three —
+   expected at only 50 topics over an 11k catalog with short course descriptions;
+   the variational fit is also the slowest. It earns its place for
+   interpretability and per-document topic distributions, not ranking quality.
+
+### Honest limitations
+
+- **The free-text gap is now the binding constraint.** Topic and (coming)
+  semantic methods are supposed to win precisely on synonym/paraphrase queries —
+  exactly what `recommend_by_text` does and what the still-missing judged-query
+  set (plan §3 lens 3) would measure. Until that lens exists, every NDCG number
+  here describes item-to-item similarity on near-duplicate text only.
+- **Topic count is unswept.** k was fixed (LSA 200, NMF/LDA 50), not tuned; the
+  point estimates above shouldn't be read as each method's ceiling.
+
 ## Phase 1 — lexical baselines (TF-IDF, BM25)
 
 Evaluated on the **cross-listing lens** (1,072 in-catalog seeds) with a

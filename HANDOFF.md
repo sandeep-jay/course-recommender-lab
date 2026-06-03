@@ -5,25 +5,16 @@
 
 ## Current state
 
-**Phase 2 (topic models: LSA / NMF / LDA) is complete and green.** On top of the
-Phase 1 lexical rung + harness, `recommenders/topics.py` now adds three
-latent-topic rankers over a shared `_TopicRecommender` base — `LSARecommender`
-(TruncatedSVD on TF-IDF), `NMFRecommender` (non-negative factorization),
-`LDARecommender` (variational LDA over raw counts) — all scoring by cosine in a
-once-normalized dense topic space, with `artifacts/<name>/` caching (class-aware
-fingerprint), persisted topic–term interpretation tables, and structured logging
-(corpus shape, cache hit/miss, model diagnostics, topic preview) per the new
-documentation/logging mandate in plan §5. `scripts/run_eval.py` fits them too, so
-the leaderboard is now **8 rows**. `pytest` = **71 passed**, `ruff`/`black` clean.
-NMF tops NDCG@10 at 0.960 but its CI overlaps every technique — still no
-significant winner (near-identical twins). Two fixes landed while wiring:
-denormal row-norm guard in `_l2_normalize_rows`, and `np.errstate` to silence
-spurious Apple-Silicon BLAS `matmul` warnings (matrices verified finite).
-
-Open thread unchanged and now more pressing: `recommend_by_text` works for every
-technique but is **still unscored** — the judged-query set (plan §3 lens 3) is the
-only way to show topic models' real payoff (synonym/paraphrase robustness), since
-the cross-listing lens can't distinguish them from lexical.
+**Phases 0–2 are complete and green:** the data pipeline, the swappable
+`Recommender` interface, the eval harness, and two technique rungs — lexical
+(`recommenders/lexical.py`: TF-IDF, BM25) and topic models
+(`recommenders/topics.py`: LSA, NMF, LDA, all with `artifacts/<name>/` caching
+and topic–term tables). `python scripts/run_eval.py` regenerates an **8-row**
+leaderboard; `pytest` = **71 passed**, `ruff`/`black` clean. Headline: NMF leads
+NDCG@10 at 0.960 but every technique's CI overlaps — no significant winner,
+because the cross-listing lens rewards near-identical twin text and so can't
+separate the methods; the one open thread is that `recommend_by_text` is still
+**unscored** for lack of the judged-query set (plan §3 lens 3).
 
 ## Next task
 
