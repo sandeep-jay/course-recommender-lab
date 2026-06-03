@@ -12,10 +12,11 @@ On top of the Phase 0 pipeline (package `courserec`, `config.py`/`interfaces.py`
 `artifacts/<name>/` caching), `eval.py` (cross-listing + same-subject lenses,
 Recall/Precision/NDCG@{5,10,20}, MAP, MRR, coverage/diversity/novelty, bootstrap
 CIs on NDCG@10), and `scripts/run_eval.py` → `results/leaderboard.{md,csv}`.
-`pytest` = **42 passed**; `ruff`/`black` clean. First leaderboard has **5 rows
-with CIs** (acceptance met): all configs sit at NDCG@10 ≈ 0.95–0.96 with fully
-overlapping CIs — no significant winner, as the methodology predicts for
-near-identical cross-listed twins. `scikit-learn==1.6.1`/`scipy==1.15.1` pinned.
+`pytest` = **42 passed**, `ruff`/`black` clean, leaderboard has **5 rows with
+CIs** — all configs at NDCG@10 ≈ 0.95–0.96 with fully overlapping CIs (no
+significant winner, as predicted for near-identical twins). Open thread:
+`recommend_by_text` works but is unscored — needs the judged-query set
+(plan §3 lens 3) before free-text mode can be trusted.
 
 ## Next task
 
@@ -34,14 +35,6 @@ and the leaderboard grows. Contract test per technique.
 ## Blockers / waiting-on
 
 None.
-
-## Known gaps (deliberate, flagged per plan)
-
-- **Free-text eval has no ground truth yet.** `recommend_by_text` works but is
-  unscored — needs the hand-built judged-query set (plan §3 lens 3). Flag, don't
-  silently omit.
-- `docs/TRADEOFFS.md` / `docs/RESULTS.md` (cross-cutting per-phase docs) not yet
-  written.
 
 ## First task for next session
 

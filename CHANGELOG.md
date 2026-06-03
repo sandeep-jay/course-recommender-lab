@@ -29,6 +29,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
     warns (cross-listed twins share near-identical text). Real signal is latency
     (BM25 ~3 ms/query vs bigram TF-IDF ~33 ms).
   - Pinned `scikit-learn==1.6.1` and `scipy==1.15.1` in `pyproject.toml`.
+  - `docs/RESULTS.md` (Phase 1 interpretation + honest limitations) and
+    `docs/TRADEOFFS.md` (technique × {quality, speed, interpretability, cost,
+    cold-start, complexity} matrix); README status/run updated for `run_eval.py`.
+  - `docs/adr/0002-eval-harness-design.md` — decision to resolve cross-listing
+    ground truth by space-stripped token lookup and to measure intra-list
+    diversity in a fixed, technique-agnostic TF-IDF reference space.
 - **Phase 0 — scaffold & data.** `pyproject.toml` (package `course-rec-lab`,
   pinned pandas/numpy/pyarrow + dev tools, ruff/black/pytest config); `src/courserec/`
   with `config.py` (paths, `RANDOM_SEED=42`, `NULL_TOKEN`), `interfaces.py`
