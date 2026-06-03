@@ -5,6 +5,71 @@ Findings as each phase lands. The leaderboard itself
 `python scripts/run_eval.py` and never hand-edited; this file is the
 interpretation.
 
+## Phase 3 — semantic vectors (SBERT) + the judged free-text lens
+
+Two things landed together: the **judged free-text lens** (the first scoring of
+`recommend_by_text`, plan §3 lens 3) and the **semantic rung** (local SBERT, plus
+an API backend that skips with no key). The leaderboard is now **10 rows** across
+**two** files — `leaderboard.md` (cross-listing) and `leaderboard_text.md`
+(judged queries, 22 hand-labeled).
+
+### The new lens earns its keep
+
+The cross-listing lens still can't separate anyone (all CIs overlap). The
+free-text lens does — the same 10 techniques now spread across a wide range:
+
+| Technique (config) | Free-text NDCG@10 | 95% CI | Recall@10 |
+|---|---|---|---|
+| sbert (MiniLM) | 0.6169 | [0.4978, 0.7261] | 0.681 |
+| tfidf (unigram, tw=3) | 0.6112 | [0.4972, 0.7252] | 0.736 |
+| sbert (MPNet) | 0.6054 | [0.4695, 0.7319] | 0.635 |
+| bm25 (tw=3) | 0.5840 | [0.4650, 0.7051] | 0.686 |
+| … | | | |
+| lsa (k=200) | 0.3205 | [0.4158]* | 0.413 |
+| lda (k=50) | 0.0744 | — | 0.092 |
+| nmf (k=50) | 0.0684 | — | 0.067 |
+
+### What this says
+
+1. **The lens discriminates where cross-listing couldn't.** Free-text NDCG@10
+   runs from ~0.62 down to ~0.07 — a real spread, not the tied ~0.95–0.97 huddle
+   of the cross-listing lens. The thing that separates methods is exactly the
+   thing the plan predicted: handling short queries whose words differ from
+   course titles.
+2. **Topic models collapse on free text.** NMF and LDA at k=50 score ~0.07 — near
+   useless on `recommend_by_text`, despite topping/midding the cross-listing lens.
+   Projecting a 2–4 word query through 50 topics leaves almost no signal; LSA at
+   200 components survives better (0.32) but is still far behind. This is the
+   honest counterweight to Phase 2's interpretability story: those models are for
+   reading the catalog, not for free-text retrieval.
+3. **Semantic leads — but not decisively.** SBERT MiniLM has the top point
+   estimate on *both* lenses (xlist 0.971, text 0.617) and the only perfect
+   cross-listing Recall@10 (1.000). Yet on free text its lead over the best
+   TF-IDF config (0.611) is **well within the CI** — a ~0.006 gap on a 22-query
+   set. We do not crown it (plan §6.4).
+4. **Bigger ≠ better here.** MPNet (768-d, ~170 s fit) did not beat MiniLM (384-d,
+   ~9 s fit) on either lens. MiniLM is the better speed/quality trade; the larger
+   model isn't justified by these numbers.
+5. **Queries are the fastest yet.** Exact FAISS inner-product over normalized
+   vectors answers in ~0.3 ms (MiniLM) — embeddings move the cost to a one-time
+   encode, cached thereafter.
+
+### Honest limitations
+
+- **The judged set is small (22 queries, 125 labels).** Text-lens CIs are wide
+  (~±0.11), so no top-method difference is significant. The set is also one
+  labeler's judgment on one catalog snapshot, and deliberately *not* paraphrase-
+  extreme — which is likely why semantic doesn't pull away from lexical. A larger,
+  harder query set is the clearest next lever.
+- **The API embedding row is unmeasured** — skipped + flagged (no `OPENAI_API_KEY`;
+  the repo runs local-only). Its graceful-skip path is tested; its live path is
+  not.
+- **k is unswept for both topic and semantic** — single configs, not tuned
+  ceilings.
+
+\* Bootstrap CI columns abbreviated in this digest; see `leaderboard_text.csv`
+for the full table.
+
 ## Phase 2 — topic models (LSA, NMF, LDA)
 
 Same cross-listing lens (1,072 seeds), same primary metric. Topic models drop

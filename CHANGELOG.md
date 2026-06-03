@@ -6,6 +6,53 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 ## [Unreleased]
 
 ### Added
+- **Judged free-text lens (plan §3 lens 3) — the standing gap, now closed.**
+  - `data/judged_queries.json` — 22 hand-labeled natural-language queries, 125
+    relevant `course_id`s across 34 subjects, deliberately phrased to differ from
+    course titles. Curated ground truth, so force-committed via a `.gitignore`
+    exception (the rest of `data/` stays ignored).
+  - `src/courserec/eval.py` — `JudgedQuery`, `load_judged_queries` (drops stale
+    ids with a warning, skips fully-stale queries), `score_text_queries` (scores
+    `recommend_by_text` with the same ranking metrics + NDCG@10 bootstrap CI;
+    `same_subject@10` is NaN, undefined for free text), and
+    `recommender_supports_text` (probe for item-to-item-only techniques).
+    Extracted `_aggregate_ranking_metrics`, shared by both lenses.
+  - `scripts/build_judged_queries.py` — `--validate` (exit-coded for CI),
+    `--stats`, and `--suggest "<query>"` (lexical candidates to *seed*, not
+    decide, hand labels).
+  - `scripts/run_eval.py` — writes a companion `results/leaderboard_text.{md,csv}`
+    sorted by NDCG@10; flags any skipped/unavailable technique in the header.
+  - **It discriminates where cross-listing couldn't:** free-text NDCG@10 spreads
+    from ~0.62 (lexical/SBERT) to ~0.07 (NMF/LDA at k=50), which collapse on short
+    queries. The free-text mode that topic/semantic methods are meant to win is
+    finally measurable.
+- **Phase 3 — semantic vectors (SBERT local + API embeddings).**
+  - `src/courserec/recommenders/embeddings.py` — dense-vector rankers over a
+    shared `_EmbeddingRecommender` base: `SbertRecommender` (Sentence-Transformers
+    `all-MiniLM-L6-v2` 384-d and `all-mpnet-base-v2` 768-d, MPS on Apple Silicon
+    else CPU) and `ApiEmbeddingRecommender` (hosted model, token+cost logging).
+    Two-layer cache: a per-text store keyed by `sha1(model_name + normalized_text)`
+    at `artifacts/embcache/<model>/` (a text encoded at most once per model, ever),
+    plus the fitted artifact (`embeddings.npy`, `course_ids.json`, `index.faiss`,
+    `meta.json`). Search is exact FAISS `IndexFlatIP` over L2-normalized vectors
+    (inner product = cosine; `index_type="hnsw"` exposes approximate ANN), so eval
+    stays deterministic.
+  - **Graceful degradation:** torch/sentence-transformers/faiss-cpu are an optional
+    pinned `semantic` extra, imported lazily; the API backend raises
+    `EmbeddingsUnavailable` (no SDK or no key) which `run_eval.py` catches to skip +
+    flag the row — the suite still runs local-only with no key.
+  - `scripts/run_eval.py` — sweep extended with both SBERT models + the API model;
+    leaderboard grows to **10 rows** (API skipped, flagged).
+  - Tests: `tests/test_embeddings.py` (10 cases — contract per the SBERT backend,
+    semantic free-text match, artifact roundtrip, invalid index_type, API
+    graceful-skip), plus 4 lens tests in `tests/test_eval.py`. Suite: **85 tests**.
+  - Results: SBERT MiniLM tops **both** lenses on point estimate (xlist 0.971 with
+    perfect Recall@10; text 0.617) — but its free-text lead over the best TF-IDF
+    (0.611) is **within the CI**, so semantic does not decisively beat lexical on
+    this 22-query set. The larger MPNet did not beat MiniLM. Honest finding,
+    pointing at a bigger/paraphrase-heavier query set and rerank (Phase 4).
+  - ADRs: [0003](docs/adr/0003-judged-query-lens.md) (judged-query lens),
+    [0004](docs/adr/0004-semantic-vectors.md) (semantic vectors, caching, ANN).
 - **Phase 2 — topic models (LSA / NMF / LDA).**
   - `src/courserec/recommenders/topics.py` — three latent-topic rankers over a
     shared `_TopicRecommender` base: `LSARecommender` (TruncatedSVD on TF-IDF),

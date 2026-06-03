@@ -5,34 +5,41 @@
 
 ## Current state
 
-**Phases 0–2 are complete and green:** the data pipeline, the swappable
-`Recommender` interface, the eval harness, and two technique rungs — lexical
-(`recommenders/lexical.py`: TF-IDF, BM25) and topic models
-(`recommenders/topics.py`: LSA, NMF, LDA, all with `artifacts/<name>/` caching
-and topic–term tables). `python scripts/run_eval.py` regenerates an **8-row**
-leaderboard; `pytest` = **71 passed**, `ruff`/`black` clean. Headline: NMF leads
-NDCG@10 at 0.960 but every technique's CI overlaps — no significant winner,
-because the cross-listing lens rewards near-identical twin text and so can't
-separate the methods; the one open thread is that `recommend_by_text` is still
-**unscored** for lack of the judged-query set (plan §3 lens 3).
+**Phases 0–3 are complete and green**, plus the judged free-text lens. Rungs:
+lexical (`recommenders/lexical.py`), topic models (`recommenders/topics.py`), and
+**semantic vectors** (`recommenders/embeddings.py`: `SbertRecommender` for local
+MiniLM/MPNet, `ApiEmbeddingRecommender` for a hosted model, over a shared
+`_EmbeddingRecommender` base with a `sha1`-keyed per-text embedding cache + FAISS
+`IndexFlatIP`). The eval harness now runs **two lenses**: cross-listing
+(`leaderboard.md`) and the new judged free-text set (`leaderboard_text.md`, 22
+hand-labeled queries in `data/judged_queries.json`). `python scripts/run_eval.py`
+regenerates both (**10 rows** each; the API row skips+flags with no key);
+`pytest` = **85 passed**, `ruff`/`black` clean.
+
+Headline: SBERT MiniLM tops **both** lenses on point estimate (cross-listing
+0.971 with perfect Recall@10; free-text 0.617) — but its free-text lead over the
+best TF-IDF (0.611) is **within the CI**, so semantic does not *decisively* beat
+lexical on this small set. The free-text lens does cleanly separate the field
+(NDCG@10 ~0.62 → ~0.07): topic models at k=50 collapse on short queries. The
+semantic deps are an optional `pip install -e ".[semantic]"` extra (torch,
+sentence-transformers, faiss-cpu), pinned in `pyproject.toml`.
 
 ## Next task
 
-**Phase 3 — Semantic vectors** (recommender_plan.md §2.3, §5): `recommenders/embeddings.py`
-with SBERT (`all-MiniLM-L6-v2` + one larger model) locally, then an API embedding
-model behind the same interface; embedding cache keyed by
-`sha1(model_name + normalized_text)`; FAISS/hnswlib ANN. Must run local-only with
-no API key (API path degrades gracefully). Contract test per technique, add to the
-sweep. **Alternatively**, close the standing gap first: build the judged-query set
-(`scripts/build_judged_queries.py` + a `recommend_by_text` lens in `eval.py`) so
-free-text mode — the thing topic/semantic methods are supposed to win — is finally
-measurable.
+**Phase 4 — Retrieve + rerank + MMR** (recommender_plan.md §2.4, §5):
+`recommenders/rerank.py` — a bi-encoder (reuse `SbertRecommender`) retrieves the
+top ~50, a cross-encoder reranks, and MMR adds tunable-λ diversity. Acceptance:
+the intra-list diversity metric moves with λ. Add to the sweep; score on both
+lenses. **Alternatively / first**, strengthen the judged-query set: it is small
+(22 queries) and not paraphrase-extreme, which is likely why semantic doesn't
+pull away from lexical — a larger, harder set is the cheapest lever to make the
+semantic advantage (or its absence) significant.
 
 ## Open decisions
 
 | Decision | Options | Owner | Due |
 |---|---|---|---|
-| (none open) | — | — | — |
+| Phase 4 rerank vs. grow the judged set first | Build `rerank.py` now / expand `judged_queries.json` to ~40–60 harder queries first | Sandeep | next session |
 
 ## Blockers / waiting-on
 
@@ -40,9 +47,9 @@ None.
 
 ## First task for next session
 
-Decide Phase 3 vs. the judged-query gap (see Next task), then start. If Phase 3:
-scaffold `src/courserec/recommenders/embeddings.py` with the SBERT
-`all-MiniLM-L6-v2` model behind `Recommender`, embedding cache keyed by
-`sha1(model_name + normalized_text)`, cosine over normalized vectors; contract
-test; add to `build_recommenders()`. Confirm `sentence-transformers` is a pinned
-dep first (it is not yet in `pyproject.toml`).
+Decide Phase 4 rerank vs. growing the judged set (see Open decisions). If Phase 4:
+scaffold `src/courserec/recommenders/rerank.py` with a two-stage pipeline —
+`SbertRecommender` (or any base) retrieves top-50, a cross-encoder
+(`cross-encoder/ms-marco-MiniLM-L-6-v2`) reranks, MMR re-orders with a λ knob;
+contract test; add to `build_recommenders()`. The cross-encoder is another
+`sentence-transformers` model, already covered by the `semantic` extra.
