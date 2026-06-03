@@ -2,15 +2,15 @@
 artifacts/
 *.npz
 
-# Processed data (regenerable from data/raw via scripts/prepare_data.py)
-data/processed/
+# Data — raw catalog + anything processed (kept out of the repo)
+data/
 
 # Secrets / environment
 .env
 .env.*
 
-# Claude Code — machine-specific approvals
-.claude/settings.local.json
+# Claude Code — local config, not shared via the repo
+.claude/
 
 # Python
 __pycache__/
