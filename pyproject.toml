@@ -24,6 +24,14 @@ dev = [
     "ruff==0.8.4",
     "black==24.10.0",
 ]
+# Phase 3 — semantic vectors. Heavy (torch ~hundreds of MB), so kept out of the
+# base install: Phases 0–2 run without it. Enable with `pip install -e ".[semantic]"`.
+# The recommenders degrade gracefully (skip + note) when this extra is absent.
+semantic = [
+    "sentence-transformers==5.5.1",
+    "torch==2.12.0",
+    "faiss-cpu==1.14.2",
+]
 
 [tool.setuptools.packages.find]
 where = ["src"]
