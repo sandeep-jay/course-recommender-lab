@@ -2,8 +2,13 @@
 artifacts/
 *.npz
 
-# Data — raw catalog + anything processed (kept out of the repo)
-data/
+# Data — raw catalog + anything processed (kept out of the repo).
+# Ignore the directory's contents (not the dir itself) so the curated,
+# version-controlled judged-query ground truth can be force-committed below.
+data/*
+# ...except the hand-labeled judged-query ground truth, which the free-text
+# eval lens depends on.
+!data/judged_queries.json
 
 # Secrets / environment
 .env

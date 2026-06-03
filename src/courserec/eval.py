@@ -20,16 +20,19 @@ may read it as a feature (enforced by the recommenders, not this module).
 
 from __future__ import annotations
 
+import json
 import logging
 import time
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
 import scipy.sparse as sp
 from sklearn.feature_extraction.text import TfidfVectorizer
 
-from courserec.config import RANDOM_SEED
+from courserec.config import JUDGED_QUERIES_JSON, RANDOM_SEED
 from courserec.interfaces import Recommender
 
 logger = logging.getLogger(__name__)
@@ -270,6 +273,48 @@ class EvalResult:
         }
 
 
+def _aggregate_ranking_metrics(
+    rankings: Sequence[list[str]],
+    relevants: Sequence[set[str]],
+    ks: tuple[int, ...],
+) -> tuple[dict[str, float], np.ndarray]:
+    """Aggregate per-query ranking metrics shared by every lens.
+
+    Both the cross-listing and the judged-text lenses score a list of ranked
+    ``course_id``s against a per-query relevant set with the identical binary
+    metrics; only the source of the rankings and the relevant sets differs. This
+    helper owns that common reduction so the two scorers stay in lockstep.
+
+    Args:
+        rankings: One ranked ``course_id`` list per query.
+        relevants: The relevant ``course_id`` set for each query (row-aligned
+            with ``rankings``).
+        ks: Cutoffs to report (the primary cutoff is 10).
+
+    Returns:
+        A ``(metrics, ndcg@10 per-query array)`` pair: the mean of every metric
+        keyed ``"{metric}@{k}"`` plus ``"map"``/``"mrr"``, and the raw per-query
+        NDCG@10 values for a bootstrap CI.
+    """
+    per_query = {f"{m}@{k}": [] for m in ("recall", "precision", "ndcg") for k in ks}
+    aps, rrs = [], []
+    for ranked, relevant in zip(rankings, relevants, strict=True):
+        for k in ks:
+            per_query[f"recall@{k}"].append(recall_at_k(ranked, relevant, k))
+            per_query[f"precision@{k}"].append(precision_at_k(ranked, relevant, k))
+            per_query[f"ndcg@{k}"].append(ndcg_at_k(ranked, relevant, k))
+        aps.append(average_precision(ranked, relevant))
+        rrs.append(reciprocal_rank(ranked, relevant))
+
+    metrics = {
+        name: float(np.mean(vals)) if vals else 0.0 for name, vals in per_query.items()
+    }
+    metrics["map"] = float(np.mean(aps)) if aps else 0.0
+    metrics["mrr"] = float(np.mean(rrs)) if rrs else 0.0
+    ndcg10 = np.array(per_query.get("ndcg@10", []), dtype=float)
+    return metrics, ndcg10
+
+
 def score_crosslist(
     rec: Recommender,
     courses: pd.DataFrame,
@@ -299,20 +344,12 @@ def score_crosslist(
     subjects = courses["subject"]
     seeds = list(truth)
 
-    per_query = {f"{m}@{k}": [] for m in ("recall", "precision", "ndcg") for k in ks}
-    aps, rrs, same_subj, diversities, all_recs = [], [], [], [], []
-
+    rankings, relevants, same_subj, diversities = [], [], [], []
     start = time.perf_counter()
     for seed in seeds:
         ranked = [r.course_id for r in rec.recommend_similar(seed, k=max_k)]
-        all_recs.append(ranked)
-        relevant = truth[seed]
-        for k in ks:
-            per_query[f"recall@{k}"].append(recall_at_k(ranked, relevant, k))
-            per_query[f"precision@{k}"].append(precision_at_k(ranked, relevant, k))
-            per_query[f"ndcg@{k}"].append(ndcg_at_k(ranked, relevant, k))
-        aps.append(average_precision(ranked, relevant))
-        rrs.append(reciprocal_rank(ranked, relevant))
+        rankings.append(ranked)
+        relevants.append(truth[seed])
         seed_subj = subjects.get(seed)
         top10 = ranked[:10]
         same_subj.append(
@@ -321,11 +358,7 @@ def score_crosslist(
         diversities.append(intra_list_diversity(top10, ref_matrix, ref_row))
     elapsed = time.perf_counter() - start
 
-    metrics = {name: float(np.mean(vals)) for name, vals in per_query.items()}
-    metrics["map"] = float(np.mean(aps))
-    metrics["mrr"] = float(np.mean(rrs))
-
-    ndcg10 = np.array(per_query["ndcg@10"])
+    metrics, ndcg10 = _aggregate_ranking_metrics(rankings, relevants, ks)
     return EvalResult(
         name=rec.name,
         config=rec.config,
@@ -333,9 +366,173 @@ def score_crosslist(
         metrics=metrics,
         ndcg10_ci=bootstrap_ci(ndcg10, n_boot=n_boot),
         same_subject_at_10=float(np.mean(same_subj)) if same_subj else 0.0,
-        coverage=coverage(all_recs, len(courses)),
+        coverage=coverage(rankings, len(courses)),
         diversity=float(np.mean(diversities)) if diversities else 0.0,
-        novelty=novelty(all_recs),
+        novelty=novelty(rankings),
         fit_time_s=fit_time_s,
         query_latency_ms=1000.0 * elapsed / len(seeds) if seeds else 0.0,
+        extra={"lens": "crosslist"},
     )
+
+
+# --------------------------------------------------------------------------- #
+# Judged-text lens (recommend_by_text)                                        #
+# --------------------------------------------------------------------------- #
+
+
+@dataclass(frozen=True)
+class JudgedQuery:
+    """One hand-labeled free-text query and its relevant ``course_id`` set.
+
+    Attributes:
+        query: The natural-language query a user might type.
+        relevant: The ``course_id``s a human judged clearly on-topic. The set is
+            curated and necessarily incomplete (see :func:`load_judged_queries`),
+            so it bounds *relative* recall across techniques, not absolute recall.
+        note: A short rationale for the labels (documentation only, never scored).
+    """
+
+    query: str
+    relevant: frozenset[str]
+    note: str = ""
+
+
+def load_judged_queries(
+    path: Path = JUDGED_QUERIES_JSON,
+    catalog_ids: Iterable[str] | None = None,
+) -> list[JudgedQuery]:
+    """Load the hand-labeled free-text ground truth, dropping stale references.
+
+    This is the only ground truth for ``recommend_by_text`` (plan §3 lens 3). The
+    catalog evolves between terms, so a label may reference a ``course_id`` that
+    no longer exists; when ``catalog_ids`` is given, such labels are dropped with
+    a warning (a memory recall reflecting an old file is not a reason to trust a
+    stale id) and a query left with no in-catalog labels is skipped entirely.
+
+    Args:
+        path: Path to the judged-queries JSON (see ``data/judged_queries.json``).
+        catalog_ids: If provided, the set of valid ``course_id``s; relevant
+            labels outside it are dropped and fully-stale queries skipped.
+
+    Returns:
+        The judged queries with non-empty in-catalog relevant sets.
+
+    Raises:
+        FileNotFoundError: If ``path`` does not exist.
+        KeyError: If an entry is missing the ``query`` or ``relevant`` field.
+    """
+    raw = json.loads(Path(path).read_text())
+    known = set(catalog_ids) if catalog_ids is not None else None
+    queries: list[JudgedQuery] = []
+    for entry in raw["queries"]:
+        relevant = set(entry["relevant"])
+        if known is not None:
+            dropped = relevant - known
+            if dropped:
+                logger.warning(
+                    "judged query %r: dropping %d unknown course_id(s): %s",
+                    entry["query"],
+                    len(dropped),
+                    sorted(dropped),
+                )
+            relevant &= known
+        if not relevant:
+            logger.warning(
+                "judged query %r: no in-catalog relevant ids; skipping", entry["query"]
+            )
+            continue
+        queries.append(
+            JudgedQuery(entry["query"], frozenset(relevant), entry.get("note", ""))
+        )
+    logger.info(
+        "Loaded %d judged queries (%d relevant labels) from %s",
+        len(queries),
+        sum(len(q.relevant) for q in queries),
+        path,
+    )
+    return queries
+
+
+def score_text_queries(
+    rec: Recommender,
+    queries: Sequence[JudgedQuery],
+    courses: pd.DataFrame,
+    reference: tuple[sp.csr_matrix, dict[str, int]],
+    *,
+    ks: tuple[int, ...] = (5, 10, 20),
+    fit_time_s: float = 0.0,
+    n_boot: int = 1000,
+) -> EvalResult:
+    """Score a recommender's ``recommend_by_text`` against the judged-query set.
+
+    The free-text lens — the only one that measures the mode topic and semantic
+    methods are meant to win. Same binary ranking metrics as the cross-listing
+    lens, over the hand-labeled relevant sets. ``same_subject@10`` is undefined
+    here (a free-text query has no seed subject) and is reported as NaN.
+
+    Args:
+        rec: A recommender already ``fit`` on ``courses``. Must implement
+            ``recommend_by_text`` — text-incapable techniques are filtered out by
+            the caller (see :func:`recommender_supports_text`), never passed here.
+        queries: The judged queries from :func:`load_judged_queries`.
+        courses: Processed catalog indexed by ``course_id`` (for list-quality
+            metrics).
+        reference: Output of :func:`build_reference_space` for diversity.
+        ks: Cutoffs to report (the primary cutoff is 10).
+        fit_time_s: Wall-clock fit time, passed through to the result row.
+        n_boot: Bootstrap resamples for the NDCG@10 CI.
+
+    Returns:
+        An :class:`EvalResult` for the free-text lens (``extra["lens"] == "text"``).
+    """
+    ref_matrix, ref_row = reference
+    max_k = max(ks)
+
+    rankings, relevants, diversities = [], [], []
+    start = time.perf_counter()
+    for q in queries:
+        ranked = [r.course_id for r in rec.recommend_by_text(q.query, k=max_k)]
+        rankings.append(ranked)
+        relevants.append(set(q.relevant))
+        diversities.append(intra_list_diversity(ranked[:10], ref_matrix, ref_row))
+    elapsed = time.perf_counter() - start
+
+    metrics, ndcg10 = _aggregate_ranking_metrics(rankings, relevants, ks)
+    return EvalResult(
+        name=rec.name,
+        config=rec.config,
+        n_queries=len(queries),
+        metrics=metrics,
+        ndcg10_ci=bootstrap_ci(ndcg10, n_boot=n_boot),
+        same_subject_at_10=float("nan"),  # undefined for free-text queries
+        coverage=coverage(rankings, len(courses)),
+        diversity=float(np.mean(diversities)) if diversities else 0.0,
+        novelty=novelty(rankings),
+        fit_time_s=fit_time_s,
+        query_latency_ms=1000.0 * elapsed / len(queries) if queries else 0.0,
+        extra={"lens": "text"},
+    )
+
+
+def recommender_supports_text(rec: Recommender) -> bool:
+    """Return whether ``rec.recommend_by_text`` is implemented (not a stub).
+
+    Item-to-item-only techniques may raise :class:`NotImplementedError` from
+    ``recommend_by_text`` (interface contract). The free-text lens must skip
+    those — and flag the gap — rather than crash the suite. We probe with a
+    trivial query and treat only :class:`NotImplementedError` as "unsupported";
+    any other behavior (including an empty result) counts as supported.
+
+    Args:
+        rec: A recommender already ``fit`` on the catalog.
+
+    Returns:
+        True if a probe query is served, False if it raises NotImplementedError.
+    """
+    try:
+        rec.recommend_by_text("probe query", k=1)
+    except NotImplementedError:
+        return False
+    except Exception:  # noqa: BLE001 — any other error still means "implemented"
+        return True
+    return True

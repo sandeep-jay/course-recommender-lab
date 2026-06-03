@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import pandas as pd
 import pytest
+
 from courserec.interfaces import Rec
 from courserec.recommenders import topics
 from courserec.recommenders.topics import (

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import pandas as pd
 import pytest
+
 from courserec.interfaces import Rec
 from courserec.recommenders import lexical
 from courserec.recommenders.lexical import (

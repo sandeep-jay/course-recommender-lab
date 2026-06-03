@@ -1,0 +1,116 @@
+{
+  "_about": "Hand-labeled ground truth for the free-text lens (recommender_plan.md §3 lens 3). Each entry is a natural-language query plus the course_ids a human judges clearly on-topic. This is the ONLY ground truth for recommend_by_text; it is curated, small, and necessarily incomplete — absence from a relevant set is not evidence of irrelevance, so treat recall here as a relative signal across techniques, not an absolute. Validate/maintain with scripts/build_judged_queries.py.",
+  "version": "2026-06-02",
+  "queries": [
+    {
+      "query": "understanding and designing deep neural networks",
+      "relevant": ["COMPSCI 282A", "COMPSCI C182", "DATA C182", "COMPSCI 185", "COMPSCI 285", "DATASCI 266"],
+      "note": "Deep-learning courses; titles say 'Deep Networks'/'Deep Reinforcement Learning' rather than the query's words."
+    },
+    {
+      "query": "introduction to machine learning",
+      "relevant": ["COMPSCI 189", "COMPSCI 289A", "INDENG 142", "INDENG 142A", "DATASCI 207", "ENGIN 236B", "ENGIN 237A"],
+      "note": "Core intro/applied ML across departments."
+    },
+    {
+      "query": "introductory probability and statistics",
+      "relevant": ["STAT 2", "STAT 20", "STAT 200A", "STAT 200B", "PBHLTH 142", "ARESEC 210"],
+      "note": "Intro prob/stat; phrased generically, not subject-specific."
+    },
+    {
+      "query": "natural language processing",
+      "relevant": ["COMPSCI 288", "DATASCI 266", "EECS 183", "EECS 283A", "INFO 159", "INFO 256", "INFO 259", "LINGUIS 252"],
+      "note": "NLP / computational linguistics across CS, Info, Linguistics."
+    },
+    {
+      "query": "cryptography and encryption",
+      "relevant": ["COMPSCI 171", "COMPSCI 276", "MATH 116", "CYBER 202", "COMPSCI 161"],
+      "note": "Cryptography proper plus the security course whose core is cryptography."
+    },
+    {
+      "query": "quantum mechanics",
+      "relevant": ["CHEM 122", "CHEM 221A", "CHEM 221B", "ENGIN 281A"],
+      "note": "Quantum mechanics as physics, distinct from quantum computing below."
+    },
+    {
+      "query": "introduction to quantum computing",
+      "relevant": ["CHEM C191", "COMPSCI C191", "PHYSICS C191", "CHEM C191A", "EECS C191A"],
+      "note": "The cross-listed quantum-computing intro and its part-I sibling."
+    },
+    {
+      "query": "organic chemistry",
+      "relevant": ["CHEM 112A", "CHEM 112B", "CHEM 12A", "CHEM 12B", "CHEM 113", "CHEM 114", "CHEM 115"],
+      "note": "Fundamental + advanced organic chemistry."
+    },
+    {
+      "query": "macroeconomics",
+      "relevant": ["ECON 100B", "ECON 101B", "ECON 106", "ECON 202A", "ECON 202B", "ECON 236A", "ECON 236B"],
+      "note": "Undergrad through PhD macroeconomics."
+    },
+    {
+      "query": "game theory and strategic decision making",
+      "relevant": ["ECON 209A", "ECON C110", "ECON N110", "EWMBA 211", "MBA 211", "COMPSCI 272"],
+      "note": "Game theory across Econ, business, and the CS learning-in-games course."
+    },
+    {
+      "query": "data visualization",
+      "relevant": ["COMPSS 211B", "DATASCI 209", "CYPLAN 255"],
+      "note": "Courses centered on visualizing data."
+    },
+    {
+      "query": "database systems and relational databases",
+      "relevant": ["COMPSCI 186", "INDENG 115", "INDENG 215", "COMPSCI 262B"],
+      "note": "Database design/implementation."
+    },
+    {
+      "query": "designing usable interfaces and user experience",
+      "relevant": ["COMPSCI 160", "COMPSCI 260A", "COMPSCI 260B", "COMPSCI 260M", "DESINV 24", "DESINV 25", "INFO 213", "INFO 114", "INFO 214"],
+      "note": "HCI / UI / UX design and research."
+    },
+    {
+      "query": "building web applications",
+      "relevant": ["INFO 153A", "INFO 153B", "INFO 253A", "INFO 253B"],
+      "note": "Front-end / back-end web architecture; query avoids the word 'architecture'."
+    },
+    {
+      "query": "creative writing and fiction",
+      "relevant": ["COLWRIT 130", "COLWRIT 131", "COLWRIT 132", "COLWRIT 133", "COLWRIT 140A", "COLWRIT 140B", "COLWRIT 141", "ASAMST 173", "ART 182"],
+      "note": "Creative-writing craft and workshops."
+    },
+    {
+      "query": "robotics and robot manipulation",
+      "relevant": ["BIOENG C106A", "BIOENG C106B", "BIOENG C125", "BIOENG C125B", "COMPSCI 287", "COMPSCI 287H"],
+      "note": "Robotics fundamentals, manipulation, advanced/HRI."
+    },
+    {
+      "query": "entrepreneurship and starting a company",
+      "relevant": ["ENGIN 170D", "ENGIN 183", "BIOENG 153", "BIOENG 253", "DEVENG 204"],
+      "note": "Tech/biotech/social entrepreneurship; query avoids 'startup' jargon."
+    },
+    {
+      "query": "music theory and harmony",
+      "relevant": ["MUSIC 25", "MUSIC 25A", "MUSIC 151C", "MUSIC 172"],
+      "note": "Tonal/popular music theory and harmony."
+    },
+    {
+      "query": "ancient greek philosophy",
+      "relevant": ["AGRS 36", "AGRS 163", "AGRS 130C"],
+      "note": "Socrates/Plato/Aristotle and Greek political thought."
+    },
+    {
+      "query": "film and cinema studies",
+      "relevant": ["AFRICAM 142A", "ASAMST 171", "CHICANO 135A", "CHICANO 135B", "CHICANO 135C", "CHINESE 172"],
+      "note": "Narrative/documentary cinema studies across area-studies departments."
+    },
+    {
+      "query": "climate change mitigation and adaptation",
+      "relevant": ["CIVENG 107", "CIVENG 108", "CIVENG 207", "CSOL 201", "CSOL 202", "CSOL 203", "ESPM C282"],
+      "note": "Engineering + climate-solutions courses on mitigation/adaptation."
+    },
+    {
+      "query": "computational genomics and gene analysis",
+      "relevant": ["BIOENG C149", "BIOENG C249", "BIOENG 131", "BIOENG 231"],
+      "note": "Computational analysis of genomic data."
+    }
+  ]
+}

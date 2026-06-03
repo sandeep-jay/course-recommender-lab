@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import pandas as pd
 import pytest
+
 from courserec.config import RAW_CATALOG_CSV
 from courserec.data import _build_text, _course_level, load_raw
 

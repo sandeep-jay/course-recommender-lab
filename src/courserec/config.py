@@ -29,3 +29,8 @@ RESULTS_DIR: Path = PROJECT_ROOT / "results"
 # Canonical input and output for the data pipeline.
 RAW_CATALOG_CSV: Path = RAW_DIR / "courses-report_2026-06-02.csv"
 PROCESSED_CATALOG_PARQUET: Path = PROCESSED_DIR / "courses.parquet"
+
+# Hand-labeled free-text ground truth (recommender_plan.md §3 lens 3). Unlike the
+# rest of data/ this is curated, version-controlled ground truth, so it is force-
+# committed via a .gitignore exception rather than regenerated.
+JUDGED_QUERIES_JSON: Path = DATA_DIR / "judged_queries.json"

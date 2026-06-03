@@ -2,23 +2,31 @@
 
 from __future__ import annotations
 
+import json
+
 import numpy as np
 import pandas as pd
 import pytest
+
 from courserec.eval import (
+    JudgedQuery,
     average_precision,
     bootstrap_ci,
     build_crosslist_truth,
     build_reference_space,
     coverage,
     intra_list_diversity,
+    load_judged_queries,
     ndcg_at_k,
     novelty,
     precision_at_k,
     recall_at_k,
     reciprocal_rank,
+    recommender_supports_text,
     score_crosslist,
+    score_text_queries,
 )
+from courserec.interfaces import Rec, Recommender
 from courserec.recommenders.lexical import TfidfRecommender
 
 # -- ground truth --------------------------------------------------------------
@@ -129,3 +137,91 @@ def test_score_crosslist_end_to_end(mini_catalog: pd.DataFrame, monkeypatch) -> 
         result.ndcg10_ci[0] <= result.metrics["ndcg@10"] <= result.ndcg10_ci[1] + 1e-9
     )
     assert 0.0 <= result.coverage <= 1.0
+
+
+# -- judged free-text lens -----------------------------------------------------
+
+
+def test_load_judged_queries_drops_stale_and_empty(tmp_path) -> None:
+    """Unknown course_ids are dropped; a fully-stale query is skipped entirely."""
+    path = tmp_path / "judged.json"
+    path.write_text(
+        json.dumps(
+            {
+                "queries": [
+                    {"query": "machine learning", "relevant": ["A 1", "GHOST 9"]},
+                    {"query": "all stale", "relevant": ["GHOST 1", "GHOST 2"]},
+                ]
+            }
+        )
+    )
+    queries = load_judged_queries(path, catalog_ids={"A 1", "B 2"})
+    assert len(queries) == 1  # the all-stale query is skipped
+    assert queries[0].query == "machine learning"
+    assert queries[0].relevant == frozenset({"A 1"})  # GHOST 9 dropped
+
+
+def test_load_judged_queries_keeps_all_without_catalog(tmp_path) -> None:
+    """Without a catalog filter, labels are kept verbatim (no resolution)."""
+    path = tmp_path / "judged.json"
+    path.write_text(
+        json.dumps({"queries": [{"query": "q", "relevant": ["X 1"], "note": "n"}]})
+    )
+    queries = load_judged_queries(path)
+    assert queries[0].relevant == frozenset({"X 1"})
+    assert queries[0].note == "n"
+
+
+class _FixedTextRecommender(Recommender):
+    """A stub that returns a fixed ranking for any text query, to test the lens."""
+
+    name = "fixed-text"
+    config: dict = {}
+
+    def __init__(self, ranking: list[str]) -> None:
+        self._ranking = ranking
+
+    def fit(self, courses: pd.DataFrame) -> None:  # noqa: D102
+        pass
+
+    def recommend_similar(self, course_id: str, k: int = 10) -> list[Rec]:  # noqa: D102
+        raise NotImplementedError
+
+    def recommend_by_text(self, query: str, k: int = 10) -> list[Rec]:  # noqa: D102
+        return [Rec(c, 1.0 - i) for i, c in enumerate(self._ranking[:k])]
+
+
+class _ItemOnlyRecommender(Recommender):
+    """A stub that is item-to-item only (text mode unimplemented)."""
+
+    name = "item-only"
+    config: dict = {}
+
+    def fit(self, courses: pd.DataFrame) -> None:  # noqa: D102
+        pass
+
+    def recommend_similar(self, course_id: str, k: int = 10) -> list[Rec]:  # noqa: D102
+        return []
+
+    def recommend_by_text(self, query: str, k: int = 10) -> list[Rec]:  # noqa: D102
+        raise NotImplementedError
+
+
+def test_score_text_queries_metrics_and_nan_subject(mini_catalog: pd.DataFrame) -> None:
+    """The text lens scores ranking metrics and reports same_subject@10 as NaN."""
+    # One query whose single relevant item is returned at rank 1 -> perfect NDCG.
+    queries = [JudgedQuery("composite materials", frozenset({"AEROENG C124"}))]
+    rec = _FixedTextRecommender(["AEROENG C124", "MUSIC 10"])
+    reference = build_reference_space(mini_catalog)
+    result = score_text_queries(rec, queries, mini_catalog, reference, n_boot=50)
+    assert result.n_queries == 1
+    assert result.extra["lens"] == "text"
+    assert result.metrics["ndcg@10"] == pytest.approx(1.0)
+    assert np.isnan(result.same_subject_at_10)  # undefined for free-text
+    assert 0.0 <= result.coverage <= 1.0
+
+
+def test_recommender_supports_text() -> None:
+    """Text capability is detected via a probe; only NotImplementedError = False."""
+    assert recommender_supports_text(_FixedTextRecommender(["A 1"])) is True
+    assert recommender_supports_text(_ItemOnlyRecommender()) is False
