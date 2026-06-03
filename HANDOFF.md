@@ -5,24 +5,17 @@
 
 ## Current state
 
-**Phases 0–3 are complete and green**, plus the judged free-text lens. Rungs:
-lexical (`recommenders/lexical.py`), topic models (`recommenders/topics.py`), and
-**semantic vectors** (`recommenders/embeddings.py`: `SbertRecommender` for local
-MiniLM/MPNet, `ApiEmbeddingRecommender` for a hosted model, over a shared
-`_EmbeddingRecommender` base with a `sha1`-keyed per-text embedding cache + FAISS
-`IndexFlatIP`). The eval harness now runs **two lenses**: cross-listing
-(`leaderboard.md`) and the new judged free-text set (`leaderboard_text.md`, 22
-hand-labeled queries in `data/judged_queries.json`). `python scripts/run_eval.py`
-regenerates both (**10 rows** each; the API row skips+flags with no key);
-`pytest` = **85 passed**, `ruff`/`black` clean.
-
-Headline: SBERT MiniLM tops **both** lenses on point estimate (cross-listing
-0.971 with perfect Recall@10; free-text 0.617) — but its free-text lead over the
-best TF-IDF (0.611) is **within the CI**, so semantic does not *decisively* beat
-lexical on this small set. The free-text lens does cleanly separate the field
-(NDCG@10 ~0.62 → ~0.07): topic models at k=50 collapse on short queries. The
-semantic deps are an optional `pip install -e ".[semantic]"` extra (torch,
-sentence-transformers, faiss-cpu), pinned in `pyproject.toml`.
+Phases 0–3 plus the judged free-text lens are green: lexical, topic, and semantic
+(`recommenders/embeddings.py` — local SBERT + API behind `_EmbeddingRecommender`,
+`sha1` per-text cache, FAISS) rungs scored by two lenses, with `python
+scripts/run_eval.py` regenerating both leaderboards (10 rows each; the API row
+skips with no key) and `pytest` = **85 passed**, `ruff`/`black` clean. SBERT
+MiniLM tops both lenses on point estimate (cross-listing 0.971 / perfect
+Recall@10; free-text 0.617) but its free-text lead over the best TF-IDF (0.611) is
+**within the CI**, so semantic does not decisively beat lexical. The open thread:
+the free-text lens cleanly separates the field (NDCG@10 ~0.62 → ~0.07, topic
+models collapse on short queries) but is too small (22 queries) for top
+differences to reach significance.
 
 ## Next task
 
