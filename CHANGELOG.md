@@ -6,6 +6,29 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 ## [Unreleased]
 
 ### Added
+- **Phase 5 / B.5 — metadata fusion (weighted one-hot facets ⊕ TF-IDF).**
+  - `src/courserec/recommenders/metadata.py` — `MetadataRecommender`, a Track-B
+    ranker that fuses a TF-IDF text block with a one-hot **subject + department +
+    level + units** block under a single weight λ (`text_weight`). Each block is
+    L2-normalized so the fused score is `λ²·cos_text + (1−λ)²·cos_meta`; λ=1.0 is
+    bit-for-bit the `tfidf` baseline, making the metadata contribution an exact
+    ablation. Fully sparse (TF-IDF backend) → no optional extra or API key; absent
+    facet columns / null values are skipped (fits a metadata-poor frame).
+    `recommend_by_text` zeroes the metadata block (a query has no facets), so the
+    text lens reduces to pure TF-IDF (ADR-0008).
+  - `scripts/run_eval.py` — λ ∈ {0.9, 0.7, 0.5} sweep wired into
+    `build_recommenders`; the three configs land on the cross-listing + judged-text
+    leaderboards (regenerated).
+  - `tests/test_metadata.py` — contract + fusion-behavior tests (seed excluded,
+    sorted/capped, λ=1 ≡ TF-IDF, metadata pulls a same-facet course up, sparse-text
+    safe, missing-column safe, λ∉[0,1] rejected, artifact round-trip). Suite:
+    **135 passed** (was 125).
+  - **Honest finding (ADR-0008, RESULTS Phase 5/B.5):** fusion *loses* on the
+    primary cross-listing lens, monotonically in λ (0.948 → 0.936 → 0.909, all
+    below the 0.955 TF-IDF baseline), because **99.7% of cross-listing edges span
+    different subjects** — the one-hot subject/dept block pushes twins apart. Ties
+    the baseline exactly on the free-text lens. Its real value is browse coherence
+    (a weak proxy the harness warns not to optimize) + sparse-text robustness.
 - **Phase 6 — clustering + 2-D map over the SBERT embeddings (diagnostic).**
   - `src/courserec/cluster.py` — a **diagnostic, not a `Recommender`** (no
     leaderboard row). Clusters the cached MiniLM vectors three ways with

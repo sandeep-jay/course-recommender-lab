@@ -11,3 +11,4 @@ One file per decision, format `NNNN-short-slug.md`. Write new ones with `/new-ad
 | [0005](0005-rerank-mmr.md) | Retrieve → cross-encoder rerank → MMR diversity | Accepted | 2026-06-06 |
 | [0006](0006-graph-heldout.md) | Course graph (PPR) on a held-out cross-listing edge split | Accepted | 2026-06-19 |
 | [0007](0007-clustering-diagnostic.md) | Clustering + 2-D map as a diagnostic, not a recommender | Accepted | 2026-06-19 |
+| [0008](0008-metadata-fusion.md) | Metadata fusion — weighted one-hot facets ⊕ TF-IDF | Accepted | 2026-06-19 |

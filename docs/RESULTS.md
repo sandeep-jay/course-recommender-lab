@@ -58,6 +58,58 @@ neighborhood rather than collapse onto a clique.
 - **Silhouette is sampled** (2,000 points) for tractability — a point estimate,
   not a CI.
 
+## Phase 5 / B.5 — metadata fusion (weighted one-hot facets ⊕ TF-IDF)
+
+Phase 5's Track-B ranker (`recommenders/metadata.py`) fuses a TF-IDF text block
+with a one-hot **subject + department + level + units** block under a single
+weight λ (`text_weight`), L2-normalizing each block so the fused score is
+`λ²·cos_text + (1−λ)²·cos_meta`. λ=1.0 is bit-for-bit the `tfidf` baseline, so any
+delta is the metadata's doing. It joins the cross-listing + judged-text
+leaderboards; see [ADR-0008](adr/0008-metadata-fusion.md).
+
+### Headline — adding metadata *hurts* the primary lens, monotonically
+
+| Technique | Cross-list NDCG@10 | 95% CI | text-lens NDCG@10 |
+|---|---|---|---|
+| tfidf (unigram, baseline) | 0.9553 | [0.947, 0.964] | 0.4607 |
+| metadata (λ=0.9) | 0.9476 | [0.939, 0.956] | 0.4607 |
+| metadata (λ=0.7) | 0.9362 | [0.928, 0.944] | 0.4607 |
+| metadata (λ=0.5) | 0.9093 | [0.899, 0.919] | 0.4607 |
+
+Cross-listing NDCG@10 falls the moment metadata enters and keeps falling as λ
+drops — every fused config sits *below* the pure-text baseline. On the judged
+free-text lens all three λ tie the baseline **exactly** (0.4607): a query carries
+no facets, so its metadata block is zero and ranking collapses to pure TF-IDF, by
+design.
+
+### Why it's a clean mechanistic loss, not a bug
+
+**99.7% of cross-listing edges connect different subjects, and 97.0% different
+departments** — a cross-listing *is* the same course offered under two subject
+codes. So the one-hot subject/department block, which raises similarity for
+same-subject courses, actively **pushes a twin away from its seed**. Fusion can
+only hurt the one lens that rewards twins ranking each other. This is the same
+tension the graph rung hit from the structural side ([Phase 5 graph](#phase-5--course-graph-ppr-on-a-held-out-cross-listing-edge-split):
+"cross-listed twins frequently span subjects"); metadata fusion quantifies it
+from the content side.
+
+### What this says
+
+- **These facets are adversarial to the cross-listing target, not merely
+  orthogonal.** Their genuine value is browse/filter coherence — "more grad
+  Mechanical Engineering courses like this one" — which the harness only measures
+  as the *weak* same-subject proxy it explicitly warns against optimizing
+  (rules/eval.md). With no browse lens in the plan's three, the leaderboard can
+  only show the cost, so the cost is what's documented.
+- **One real win survives: sparse-text robustness.** A description-less course has
+  a near-empty text block but a fully-populated metadata block, so fusion still
+  places it sensibly where text-only methods have nothing to go on — it just
+  doesn't show up in a twin-recovery metric.
+- **Self-contained and legible.** TF-IDF backend → fully sparse, no extra/key, and
+  the λ=1 ≡ baseline identity makes the ablation exact. λ is swept, not optimized;
+  the gradient is monotone toward pure text, so finer resolution wouldn't change
+  the direction.
+
 ## Phase 5 — course graph (PPR) on a held-out cross-listing edge split
 
 Phase 5 adds the graph rung (`recommenders/graph.py`) — the one technique allowed

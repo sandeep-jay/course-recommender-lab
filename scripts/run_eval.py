@@ -34,6 +34,7 @@ from courserec.recommenders.embeddings import (
 )
 from courserec.recommenders.graph import GraphRecommender
 from courserec.recommenders.lexical import BM25Recommender, TfidfRecommender
+from courserec.recommenders.metadata import MetadataRecommender
 from courserec.recommenders.rerank import RerankRecommender
 from courserec.recommenders.topics import (
     LDARecommender,
@@ -78,6 +79,14 @@ def build_recommenders() -> list[Recommender]:
         RerankRecommender(mmr_lambda=1.0),
         RerankRecommender(mmr_lambda=0.5),
         RerankRecommender(mmr_lambda=0.3),
+        # Phase 5 / Track B.5 — metadata fusion. A TF-IDF text block fused with a
+        # one-hot subject+department+level+units block under a single weight λ
+        # (text_weight). Sweeping λ isolates the structure's contribution against
+        # the pure-text `tfidf(...)` baseline above: λ=1.0 is that baseline,
+        # lower λ leans on metadata. Self-contained (no key, no heavy extra).
+        MetadataRecommender(text_weight=0.9),
+        MetadataRecommender(text_weight=0.7),
+        MetadataRecommender(text_weight=0.5),
     ]
 
 
