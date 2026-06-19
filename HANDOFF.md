@@ -20,15 +20,12 @@ trustworthy signal.
 
 ## Next task
 
-Two open Phase-7 threads — pick either:
-1. **Confirm the LLM rung cleanly:** run `python scripts/enrich_catalog.py --all`
-   (full ~11k catalog, multi-hour, resumable, cached) then re-run `run_eval`; this
-   removes the partial-enrichment confound and gives a number comparable to the
-   other rungs.
-2. **Build the rest of Phase 7** (plan §2.8 b/c): the **zero-shot LLM reranker**
-   over candidate sets and the **"why this fits"** explanation for the UI, plus the
-   **LLM-as-judge** validation of the free-text lens (plan §3). Reuse the existing
-   `OllamaClient` + tag cache.
+De-confound the LLM tag rung: with `ollama serve` up, run
+`python scripts/enrich_catalog.py --all` (full ~11k catalog, multi-hour,
+resumable, cached) then `python scripts/run_eval.py` — this enriches the
+distractors too, removing the target/distractor vocabulary-separation artifact, so
+`llm_tags(qwen3:8b)`'s cross-listing number becomes comparable to the other rungs.
+Update RESULTS Phase 7 + ADR-0009 with the clean figure.
 
 ## Open decisions
 

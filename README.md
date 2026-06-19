@@ -23,6 +23,7 @@ along with everything under `data/` — keep your own copy).
 
 ```bash
 python scripts/prepare_data.py   # raw CSV -> data/processed/courses.parquet
+python scripts/enrich_catalog.py # Phase 7: LLM-tag the eval subset via Ollama (--all for full)
 python scripts/run_eval.py       # fit + score all techniques -> results/leaderboard.{md,csv}
 python scripts/run_clustering.py # Phase 6 diagnostic -> results/cluster_report.md + plots/
 pytest                           # tests
@@ -30,11 +31,13 @@ ruff check . && black .          # lint / format
 ```
 
 The semantic rung needs `pip install -e ".[semantic]"`; the Phase 6 map needs
-`".[viz]"` (matplotlib; UMAP optional — t-SNE fallback otherwise).
+`".[viz]"` (matplotlib; UMAP optional — t-SNE fallback otherwise). The Phase 7 LLM
+rung needs a local [Ollama](https://ollama.com) daemon + a pulled model (no API
+key, no extra Python deps); `run_eval` skips it gracefully when Ollama is absent.
 
 ## Status
 
-**Phases 0–6 — complete.** On the Phase 0 pipeline (cleaned catalog of 11,073
+**Phases 0–7 (tag rung) — complete.** On the Phase 0 pipeline (cleaned catalog of 11,073
 unique courses), the techniques score through one shared eval harness
 ([src/courserec/eval.py](src/courserec/eval.py)) on **three lenses** —
 cross-listing twins (automatic), a hand-labeled judged free-text set (44
@@ -52,19 +55,30 @@ graph — with full metrics and bootstrap CIs, written to one-command leaderboar
 - **Phase 5 — course graph (PPR):** personalized-PageRank over cross-listing +
   subject/dept aux nodes, scored only on a held-out edge split
   ([graph.py](src/courserec/recommenders/graph.py)).
+- **Phase 5 — metadata fusion:** one-hot subject+dept+level+units fused with
+  TF-IDF under a weight λ — a clean ablation that *loses* on cross-listing
+  ([metadata.py](src/courserec/recommenders/metadata.py)).
 - **Phase 6 — clustering + 2-D map:** KMeans / Ward / HDBSCAN over the SBERT
   vectors + a subject-colored map — a **diagnostic**, not a ranker
   ([cluster.py](src/courserec/cluster.py)).
+- **Phase 7 — LLM enrichment (tag rung):** local Ollama (qwen3:8b, no API key)
+  extracts per-course tags, ranked by TF-IDF cosine over tag profiles
+  ([llm.py](src/courserec/recommenders/llm.py)).
 
 **Headline:** SBERT MiniLM tops both ranking lenses and beats the best lexical
 config on free text *decisively* (NDCG@10 0.682 vs 0.499, non-overlapping CIs).
-Two honest findings: the graph recovers only ~23% of held-out twins because
+Honest findings: the graph recovers only ~23% of held-out twins because
 near-identical twin text gives content methods everything
-([ADR-0006](docs/adr/0006-graph-heldout.md)); and the embedding space is a smooth
-manifold, not tidy clusters (low silhouette, HDBSCAN noises 90% of the catalog —
-[ADR-0007](docs/adr/0007-clustering-diagnostic.md)). See
+([ADR-0006](docs/adr/0006-graph-heldout.md)); the embedding space is a smooth
+manifold, not tidy clusters ([ADR-0007](docs/adr/0007-clustering-diagnostic.md));
+metadata fusion *hurts* the cross-listing target because 99.7% of twins span
+subjects ([ADR-0008](docs/adr/0008-metadata-fusion.md)); and the LLM tag rung tops
+every lexical baseline (xlist 0.960, text 0.585) but on only the 12.5% eval-target
+subset, so its lift is partly a partial-enrichment artifact pending a full-catalog
+run ([ADR-0009](docs/adr/0009-llm-enrichment-ollama.md)). See
 [docs/RESULTS.md](docs/RESULTS.md) and [docs/TRADEOFFS.md](docs/TRADEOFFS.md).
-Next: metadata fusion (Track B.5). The swappable `Recommender` interface is in
+Next: full-catalog LLM enrichment to de-confound, then the zero-shot reranker +
+"why this fits" (Phase 7 b/c). The swappable `Recommender` interface is in
 [src/courserec/interfaces.py](src/courserec/interfaces.py).
 
 See [CHANGELOG.md](CHANGELOG.md) for history and [docs/adr/](docs/adr/) for
