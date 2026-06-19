@@ -30,15 +30,27 @@ ruff check . && black .          # lint / format
 
 ## Status
 
-**Phase 1 (lexical baselines + harness + leaderboard) — complete.** On the
-Phase 0 pipeline (cleaned catalog of 11,073 unique courses), the lexical rung now
-exists: TF-IDF+cosine and Okapi BM25 ([src/courserec/recommenders/lexical.py](src/courserec/recommenders/lexical.py)),
-the shared eval harness with cross-listing + same-subject lenses, full metrics,
-and bootstrap CIs ([src/courserec/eval.py](src/courserec/eval.py)), and a
-one-command [leaderboard](results/leaderboard.md). All lexical configs tie at
-NDCG@10 ≈ 0.95–0.96 with overlapping CIs — see [docs/RESULTS.md](docs/RESULTS.md)
-and [docs/TRADEOFFS.md](docs/TRADEOFFS.md). Next: Phase 2 — topic models
-(LSA/NMF/LDA). The swappable `Recommender` interface is in
+**Phases 0–4 — complete.** On the Phase 0 pipeline (cleaned catalog of 11,073
+unique courses), four rungs of techniques now score through one shared eval
+harness ([src/courserec/eval.py](src/courserec/eval.py)) on **two lenses** —
+cross-listing twins (automatic) and a hand-labeled judged free-text set (44
+paraphrase-extreme queries) — with full metrics and bootstrap CIs, written to a
+one-command [leaderboard](results/leaderboard.md) (13 rows per lens):
+
+- **Phase 1 — lexical:** TF-IDF+cosine, Okapi BM25 ([lexical.py](src/courserec/recommenders/lexical.py)).
+- **Phase 2 — topic models:** LSA, NMF, LDA ([topics.py](src/courserec/recommenders/topics.py)).
+- **Phase 3 — semantic vectors:** local SBERT (MiniLM/MPNet) + an API backend that
+  skips with no key ([embeddings.py](src/courserec/recommenders/embeddings.py)).
+- **Phase 4 — retrieve→rerank→MMR:** cross-encoder rerank with an MMR diversity
+  knob ([rerank.py](src/courserec/recommenders/rerank.py)).
+
+**Headline:** SBERT MiniLM tops both lenses and now beats the best lexical config
+on free text *decisively* (NDCG@10 0.682 vs 0.499, non-overlapping CIs). The
+cross-encoder reranker does not beat the bi-encoder here (honest finding,
+[ADR-0005](docs/adr/0005-rerank-mmr.md)); its MMR λ knob delivers tunable
+diversity. See [docs/RESULTS.md](docs/RESULTS.md) and
+[docs/TRADEOFFS.md](docs/TRADEOFFS.md). Next: Phase 5 — graph / cross-listing
+edges. The swappable `Recommender` interface is in
 [src/courserec/interfaces.py](src/courserec/interfaces.py).
 
 See [CHANGELOG.md](CHANGELOG.md) for history and [docs/adr/](docs/adr/) for

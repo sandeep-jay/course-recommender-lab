@@ -5,6 +5,66 @@ Findings as each phase lands. The leaderboard itself
 `python scripts/run_eval.py` and never hand-edited; this file is the
 interpretation.
 
+## Phase 4 — retrieve → cross-encoder rerank → MMR (+ a harder judged set)
+
+Two things landed together: the **Phase 4 rerank rung** (a MiniLM bi-encoder
+retrieves the top 50, the `ms-marco-MiniLM-L-6-v2` cross-encoder rescores, MMR
+re-orders with a λ knob) and a **2× expansion of the judged set** (22 → 44
+paraphrase-extreme queries, 309 labels over 80 subjects). The leaderboard is now
+**13 rows** per lens.
+
+### Growing the judged set made the semantic win significant
+
+The old 22-query set left SBERT's free-text lead inside the CI. On the larger,
+harder, deliberately paraphrase-extreme set the gap is now decisive:
+
+| Technique (config) | Free-text NDCG@10 | 95% CI | Recall@10 |
+|---|---|---|---|
+| sbert (MiniLM) | 0.6821 | [0.6153, 0.7456] | 0.706 |
+| sbert (MPNet) | 0.6353 | [0.5619, 0.7114] | 0.631 |
+| rerank (λ=1.0) | 0.6098 | [0.5303, 0.6890] | 0.622 |
+| tfidf (unigram, tw=3) | 0.4991 | [0.4120, 0.5847] | 0.551 |
+| bm25 (tw=3) | 0.4923 | [0.4054, 0.5757] | 0.523 |
+
+SBERT MiniLM's CI **[0.615, 0.746]** clears the best lexical config's
+**[0.412, 0.585]** with no overlap — the semantic advantage the lens was built to
+detect is now real, not within-noise. Two levers did it: more queries (tighter
+CIs) and harder phrasing (queries whose words deliberately differ from the
+relevant courses' titles, which is exactly where lexical falls and meaning wins).
+
+### The MMR knob works — diversity moves with λ
+
+The phase-4 acceptance criterion (plan §5) is that the intra-list diversity metric
+moves with λ. It does, monotonically, on **both** lenses:
+
+| λ | Cross-listing NDCG@10 | Cross-listing diversity | Free-text NDCG@10 | Free-text diversity |
+|---|---|---|---|---|
+| 1.0 (pure relevance) | 0.9604 | 0.734 | 0.6098 | 0.745 |
+| 0.5 | 0.9439 | 0.823 | 0.5027 | 0.822 |
+| 0.3 (diversity-leaning) | 0.8199 | 0.894 | 0.3857 | 0.870 |
+
+Diversity is measured in the technique-agnostic TF-IDF reference space (ADR-0002),
+not the model's own — so the move is real, not self-flattering. Lower λ trades
+relevance for novelty exactly as designed.
+
+### Honest finding — the cross-encoder does not beat the bi-encoder here
+
+This is the headline negative result. At λ=1.0 (pure rerank, no diversity
+penalty) the cross-encoder **trails plain SBERT MiniLM** on both lenses:
+free-text 0.610 vs 0.682, cross-listing 0.960 vs 0.971 — and costs ~70–80 ms/query
+versus sub-ms for the bi-encoder. Two reasons:
+
+1. **Domain mismatch.** `ms-marco-MiniLM-L-6-v2` is trained on web-search
+   query→passage relevance; course-catalog text (and the twin-matching task in
+   particular) is out of its training distribution.
+2. **Retrieval already wins.** The bi-encoder places the cross-listed twin at rank
+   1; reranking only the top 50 can demote it but rarely promote a better one, so
+   the cross-encoder mostly *loses* NDCG it cannot regain.
+
+The value Phase 4 delivers is therefore the **diversity control**, not a relevance
+gain. A domain-tuned or fine-tuned cross-encoder might reverse this — out of scope
+for this phase, and a candidate next lever (see [HANDOFF](../HANDOFF.md)).
+
 ## Phase 3 — semantic vectors (SBERT) + the judged free-text lens
 
 Two things landed together: the **judged free-text lens** (the first scoring of
@@ -60,7 +120,9 @@ free-text lens does — the same 10 techniques now spread across a wide range:
   (~±0.11), so no top-method difference is significant. The set is also one
   labeler's judgment on one catalog snapshot, and deliberately *not* paraphrase-
   extreme — which is likely why semantic doesn't pull away from lexical. A larger,
-  harder query set is the clearest next lever.
+  harder query set is the clearest next lever. **(Resolved in Phase 4: the set grew
+  to 44 paraphrase-extreme queries and the semantic lead is now significant — see
+  the Phase 4 section above.)**
 - **The API embedding row is unmeasured** — skipped + flagged (no `OPENAI_API_KEY`;
   the repo runs local-only). Its graceful-skip path is tested; its live path is
   not.

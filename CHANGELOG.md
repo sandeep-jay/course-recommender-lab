@@ -6,6 +6,41 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 ## [Unreleased]
 
 ### Added
+- **Phase 4 — retrieve → cross-encoder rerank → MMR diversity.**
+  - `src/courserec/recommenders/rerank.py` — `RerankRecommender`: a MiniLM
+    `SbertRecommender` retrieves the top `retrieve_n` (50), the cross-encoder
+    `cross-encoder/ms-marco-MiniLM-L-6-v2` rescores each `(query, candidate)` pair,
+    then MMR re-orders with a `mmr_lambda` ∈ [0,1] knob (`λ·rel − (1−λ)·max sim`;
+    `rel` = min-max-normalized cross-encoder score, `sim` = cosine in the
+    bi-encoder space). Greedy MMR's value is non-increasing across picks, so the
+    emitted scores stay sorted descending. No new artifact — retrieval reuses the
+    base's embedding cache + FAISS index; reranking is query-time. Same `semantic`
+    extra, so it skips gracefully (raises `EmbeddingsUnavailable`) with no install.
+  - `scripts/run_eval.py` — three rerank rows (λ ∈ {1.0, 0.5, 0.3}) on both lenses.
+  - `tests/test_rerank.py` — contract tests plus the phase-4 acceptance test
+    (lower λ ⇒ higher intra-list diversity, measured in the technique-agnostic
+    reference space). Suite: **94 passed** (was 85).
+  - `docs/adr/0005-rerank-mmr.md` — design + the honest finding.
+  - **The MMR knob works:** λ = 1.0 → 0.5 → 0.3 raises diversity monotonically on
+    both lenses (cross-listing 0.734 → 0.823 → 0.894; free-text 0.745 → 0.822 →
+    0.870) while NDCG@10 falls — the acceptance criterion.
+  - **Honest finding — rerank does not beat the bi-encoder here.** At λ=1.0 the
+    cross-encoder trails plain SBERT MiniLM on both lenses (free-text 0.610 vs
+    0.682; cross-listing 0.960 vs 0.971) at ~70–80 ms/query vs sub-ms. The
+    MS-MARCO cross-encoder is domain-mismatched to course text, and retrieval
+    already ranks twins first, so reranking can only demote them. The value
+    delivered is diversity control, not relevance — documented, not hidden.
+- **Judged free-text lens expanded 22 → 44 queries (closing the significance gap).**
+  - `data/judged_queries.json` — 22 new paraphrase-extreme queries across
+    previously thin subjects (psychology, public health, law, art history,
+    sociology, religion, development econ, etc.); 309 relevant labels over 80
+    subjects (was 125 / 34). Each query deliberately avoids the words in the
+    relevant courses' titles. Curated with both lexical *and* SBERT candidates so
+    the labels aren't biased toward lexical matching.
+  - **It made the semantic advantage significant.** On the larger, harder set the
+    SBERT MiniLM free-text lead over the best lexical config is now decisive:
+    NDCG@10 0.682 (CI [0.615, 0.746]) vs 0.499 (CI [0.412, 0.585]) — **non-overlapping
+    CIs**, where the old 22-query set left it within the CI (0.617 vs 0.611).
 - **Judged free-text lens (plan §3 lens 3) — the standing gap, now closed.**
   - `data/judged_queries.json` — 22 hand-labeled natural-language queries, 125
     relevant `course_id`s across 34 subjects, deliberately phrased to differ from

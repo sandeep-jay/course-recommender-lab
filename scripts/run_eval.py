@@ -31,6 +31,7 @@ from courserec.recommenders.embeddings import (
     SbertRecommender,
 )
 from courserec.recommenders.lexical import BM25Recommender, TfidfRecommender
+from courserec.recommenders.rerank import RerankRecommender
 from courserec.recommenders.topics import (
     LDARecommender,
     LSARecommender,
@@ -67,6 +68,13 @@ def build_recommenders() -> list[Recommender]:
         SbertRecommender(model_name="all-MiniLM-L6-v2"),
         SbertRecommender(model_name="all-mpnet-base-v2"),
         ApiEmbeddingRecommender(model_name="text-embedding-3-small"),
+        # Phase 4 — retrieve (MiniLM SBERT) → cross-encoder rerank → MMR. The
+        # mmr_lambda sweep shows the diversity knob: 1.0 is pure cross-encoder
+        # relevance, lower values trade relevance for intra-list diversity. Same
+        # 'semantic' extra as SBERT, so these skip gracefully when it is absent.
+        RerankRecommender(mmr_lambda=1.0),
+        RerankRecommender(mmr_lambda=0.5),
+        RerankRecommender(mmr_lambda=0.3),
     ]
 
 

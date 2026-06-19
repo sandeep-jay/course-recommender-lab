@@ -5,34 +5,32 @@
 
 ## Current state
 
-Phases 0–3 plus the judged free-text lens are green: lexical, topic, and semantic
-(`recommenders/embeddings.py` — local SBERT + API behind `_EmbeddingRecommender`,
-`sha1` per-text cache, FAISS) rungs scored by two lenses, with `python
-scripts/run_eval.py` regenerating both leaderboards (10 rows each; the API row
-skips with no key) and `pytest` = **85 passed**, `ruff`/`black` clean. SBERT
-MiniLM tops both lenses on point estimate (cross-listing 0.971 / perfect
-Recall@10; free-text 0.617) but its free-text lead over the best TF-IDF (0.611) is
-**within the CI**, so semantic does not decisively beat lexical. The open thread:
-the free-text lens cleanly separates the field (NDCG@10 ~0.62 → ~0.07, topic
-models collapse on short queries) but is too small (22 queries) for top
-differences to reach significance.
+Phases 0–4 plus the judged free-text lens are green: lexical, topic, semantic, and
+now the Phase 4 retrieve→cross-encoder-rerank→MMR rung (`recommenders/rerank.py`)
+all score on both lenses, with `python scripts/run_eval.py` regenerating both
+leaderboards (13 rows each; the API row skips with no key) and `pytest` = **94
+passed**, `ruff`/`black` clean. The judged set was grown 22 → 44 paraphrase-extreme
+queries, which made the semantic win decisive — SBERT MiniLM free-text NDCG@10
+0.682 (CI [0.615, 0.746]) now clears the best lexical 0.499 (CI [0.412, 0.585]) on
+**non-overlapping CIs**. The MMR λ knob behaves as specified (λ 1.0→0.5→0.3 raises
+intra-list diversity on both lenses), but the cross-encoder reranker does **not**
+beat the bi-encoder here (domain-mismatched MS-MARCO model; twins already rank
+first) — an honest, documented limitation (ADR-0005).
 
 ## Next task
 
-**Phase 4 — Retrieve + rerank + MMR** (recommender_plan.md §2.4, §5):
-`recommenders/rerank.py` — a bi-encoder (reuse `SbertRecommender`) retrieves the
-top ~50, a cross-encoder reranks, and MMR adds tunable-λ diversity. Acceptance:
-the intra-list diversity metric moves with λ. Add to the sweep; score on both
-lenses. **Alternatively / first**, strengthen the judged-query set: it is small
-(22 queries) and not paraphrase-extreme, which is likely why semantic doesn't
-pull away from lexical — a larger, harder set is the cheapest lever to make the
-semantic advantage (or its absence) significant.
+**Phase 5 — graph / cross-listing-as-edges** (recommender_plan.md §2.5, §5), the
+one technique allowed to use `Cross-Listed Course(s)` as input — and only on a
+**held-out edge split** to avoid leakage. Build a co-listing graph, learn node
+embeddings (e.g. node2vec) or use label propagation, and evaluate `recommend_*`
+on the held-out edges. Alternatively, if a relevance gain from reranking is
+wanted first, try a domain-tuned / different cross-encoder before moving on.
 
 ## Open decisions
 
 | Decision | Options | Owner | Due |
 |---|---|---|---|
-| Phase 4 rerank vs. grow the judged set first | Build `rerank.py` now / expand `judged_queries.json` to ~40–60 harder queries first | Sandeep | next session |
+| Phase 5 graph vs. revisit the cross-encoder | Build `recommenders/graph.py` on a held-out edge split / swap in a stronger or domain-tuned cross-encoder to chase a rerank relevance gain | Sandeep | next session |
 
 ## Blockers / waiting-on
 
@@ -40,9 +38,8 @@ None.
 
 ## First task for next session
 
-Decide Phase 4 rerank vs. growing the judged set (see Open decisions). If Phase 4:
-scaffold `src/courserec/recommenders/rerank.py` with a two-stage pipeline —
-`SbertRecommender` (or any base) retrieves top-50, a cross-encoder
-(`cross-encoder/ms-marco-MiniLM-L-6-v2`) reranks, MMR re-orders with a λ knob;
-contract test; add to `build_recommenders()`. The cross-encoder is another
-`sentence-transformers` model, already covered by the `semantic` extra.
+Decide Phase 5 graph vs. revisiting the cross-encoder (see Open decisions). If
+Phase 5: scaffold `src/courserec/recommenders/graph.py` — build the co-listing
+graph, hold out a fraction of edges as the eval target (the sole sanctioned use of
+`Cross-Listed Course(s)`), learn node embeddings, contract-test, and add to
+`build_recommenders()` with its held-out-split evaluation wired into the harness.

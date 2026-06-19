@@ -1,6 +1,6 @@
 {
   "_about": "Hand-labeled ground truth for the free-text lens (recommender_plan.md §3 lens 3). Each entry is a natural-language query plus the course_ids a human judges clearly on-topic. This is the ONLY ground truth for recommend_by_text; it is curated, small, and necessarily incomplete — absence from a relevant set is not evidence of irrelevance, so treat recall here as a relative signal across techniques, not an absolute. Validate/maintain with scripts/build_judged_queries.py.",
-  "version": "2026-06-02",
+  "version": "2026-06-04",
   "queries": [
     {
       "query": "understanding and designing deep neural networks",
@@ -111,6 +111,116 @@
       "query": "computational genomics and gene analysis",
       "relevant": ["BIOENG C149", "BIOENG C249", "BIOENG 131", "BIOENG 231"],
       "note": "Computational analysis of genomic data."
+    },
+    {
+      "query": "how the human mind processes thought and emotion",
+      "relevant": ["PSYCH 3B", "PSYCH 156", "PSYCH 164", "COGSCI 201", "COGSCI C100", "PSYCH C120", "LINGUIS C142", "COGSCI C142"],
+      "note": "Cognition and emotion (Psych/Cog-Sci); titles say 'Human Emotion'/'Social Cognition'/'Basic Issues in Cognition', not the query's words."
+    },
+    {
+      "query": "the spread and control of disease across populations",
+      "relevant": ["PBHLTH 253B", "PBHLTH 252B", "INTEGBI 114", "PBHLTH 260A", "PBHLTH 260B", "PBHLTH 257", "PBHLTH 260E", "ESPM 209", "MCELLBI 55", "PBHLTH N250A"],
+      "note": "Epidemiology of infectious disease; query deliberately avoids 'epidemiology' and 'infectious'."
+    },
+    {
+      "query": "how nations interact and resolve conflicts",
+      "relevant": ["PACS 151", "GLOBAL 133", "POLSCI 124M", "POLSCI 125", "POLSCI 228", "POLSCI 123M", "POLSCI 124N", "HISTORY 162B"],
+      "note": "International relations / conflict resolution; query avoids 'international', 'war', and 'diplomacy'."
+    },
+    {
+      "query": "the structure and workings of the human body",
+      "relevant": ["INTEGBI 131", "INTEGBI 131L", "INTEGBI 132", "MCELLBI 32", "MCELLBI 32L", "MCELLBI 136", "XMCELLB 32"],
+      "note": "Human anatomy and physiology; query avoids 'anatomy' and 'physiology'."
+    },
+    {
+      "query": "money, banking, and financial markets",
+      "relevant": ["ECON 165", "MBA 232", "EWMBA 232", "UGBA 132", "ECON 136", "ECON N136", "ECON 158", "POLECON 157"],
+      "note": "Money/banking and financial institutions across Econ and the business schools."
+    },
+    {
+      "query": "race, ethnicity, and inequality in american society",
+      "relevant": ["SOCIOL 130AC", "ETHSTD N130", "SOCIOL 131", "SOCIOL 131AC", "SOCWEL 150AC", "AFRICAM 111", "GEOG 155", "GEOG C155", "AFRICAM C156", "POLSCI 167AC"],
+      "note": "Race/ethnicity and social inequality in the US across Sociology, Ethnic Studies, African-American Studies, Geography."
+    },
+    {
+      "query": "gender, sexuality, and identity",
+      "relevant": ["COMLIT 265", "SOCIOL 135", "ETHSTD 126", "ETHSTD C126", "QTP C148", "GWS 10", "XGWS 10", "HISTORY 136B", "ENGLISH 171"],
+      "note": "Gender and sexuality studies across departments; 'identity' maps to queer/sexuality studies."
+    },
+    {
+      "query": "painting, sculpture, and the history of visual art",
+      "relevant": ["HISTART 286", "HISTART 10B", "HISTART 11", "HISTART 14", "HISTART 65", "HISTART 101", "HISTART N100"],
+      "note": "History of art (Western/global); the query names media (painting/sculpture) rather than 'art history'."
+    },
+    {
+      "query": "how people learn and teach a second language",
+      "relevant": ["SPANISH 166", "FRENCH 149", "EDUC 240C", "GERMAN 375A", "ITALIAN 375", "SCANDIN 375", "HEBREW 301A", "HEBREW 301B"],
+      "note": "Second-language acquisition and foreign-language pedagogy; not the elementary language courses themselves."
+    },
+    {
+      "query": "the physics of motion, force, and energy",
+      "relevant": ["PHYSICS 7A", "PHYSICS 5A", "PHYSICS 7B", "PHYSICS 8A", "PHYSICS 105", "MECENG 104"],
+      "note": "Classical mechanics; titles say 'Mechanics'/'Physics for Scientists and Engineers', not the query's words."
+    },
+    {
+      "query": "the brain and the biology of behavior",
+      "relevant": ["NEU 100B", "PSYCH 110", "PSYCH N110", "NEU 61", "NEU C61", "PSYCH C61", "PSYCH N117", "PSYCH C115C", "NEU C125"],
+      "note": "Behavioral / biological neuroscience, distinct from the cognition query above."
+    },
+    {
+      "query": "constitutional law and the legal system",
+      "relevant": ["POLSCI 157A", "POLSCI 157B", "POLSCI 257", "LEGALST 179", "LEGALST 177", "HISTORY 129A", "POLSCI 150", "LEGALST 101", "LEGALST 100"],
+      "note": "Constitutional and foundational law across Political Science, Legal Studies, History."
+    },
+    {
+      "query": "poverty and economic development in poor countries",
+      "relevant": ["ECON N171", "ENVECON N151", "ECON 172", "ECON C171", "ENVECON C151", "DEVP 252", "POLECON 111", "SOCIOL 124", "GPP 115", "DEVENG 215"],
+      "note": "Development economics and the study of poverty across Econ, Env-Econ, Development, Sociology."
+    },
+    {
+      "query": "marketing and consumer behavior",
+      "relevant": ["UGBA 106", "MBA 206", "EWMBA 206", "UGBA 160", "MBA 260", "EWMBA 260", "PHDBA 269A", "PHDBA 269E", "UGBA 161"],
+      "note": "Marketing plus buyer/consumer behavior; 'Customer Insights' is the consumer-behavior course."
+    },
+    {
+      "query": "renewable energy and sustainable power",
+      "relevant": ["ENGIN 210A", "ELENG 108", "PUBPOL 283", "CHMENG 90", "ENERES C226", "MATSCI C226", "ENGIN 210B", "ENVECON 147"],
+      "note": "Renewable/clean energy across engineering, policy, and economics."
+    },
+    {
+      "query": "religion, faith, and spiritual traditions",
+      "relevant": ["HISTORY 20", "RELIGST 190", "ANTHRO 158", "ANTHRO 250F", "SOCIOL C112", "RELIGST C182", "PHILOS 11", "RELIGST 90B", "RELIGST C90B"],
+      "note": "The academic study of religion across History, Anthropology, Sociology, Philosophy, Religious Studies."
+    },
+    {
+      "query": "writing efficient code to organize and search data",
+      "relevant": ["COMPSCI 61B", "COMPSCI 270", "COMPSCI 170", "ENGIN 232", "INFO 206B", "DATA C88C", "COMPSCI C88C"],
+      "note": "Data structures and algorithms; query avoids 'data structures' and 'algorithms' verbatim."
+    },
+    {
+      "query": "keeping computers and networks safe from attackers",
+      "relevant": ["COMPSCI 161", "COMPSCI 261", "COMPSCI 261N", "CYBER 201", "CYBER 210", "CYBER 211", "CYBER 204", "CYBER 212"],
+      "note": "Computer/network security; query avoids 'security' and 'cyber'."
+    },
+    {
+      "query": "how children grow and learn",
+      "relevant": ["PSYCH 140", "PSYCH N140", "PSYCH 141", "PSYCH 125", "EDUC 134", "EDUC 135A", "EDUC 135B", "EDUC 135"],
+      "note": "Developmental psychology and early childhood development; query avoids 'development'."
+    },
+    {
+      "query": "the science of climate and weather",
+      "relevant": ["GEOG 144", "GEOG 149", "GEOG 142", "EPS 81", "EPS 7", "EPS 229", "GEOG C139", "EPS C181"],
+      "note": "Atmospheric/earth science of climate and weather, distinct from the climate-policy query above."
+    },
+    {
+      "query": "telling stories through film and moving images",
+      "relevant": ["FILM 183", "FILM 185", "FILM 25", "FILM 128", "FILM 188", "JOURN 110", "JOURN 115", "ART 26"],
+      "note": "Film/video production and visual storytelling, distinct from the cinema-studies query above."
+    },
+    {
+      "query": "the geometry and structure of abstract mathematics",
+      "relevant": ["MATH 113", "MATH H113", "MATH 114", "MATH 250A", "MATH 250B", "MATH 245A", "MATH 130", "MATH 143", "MATH 256A", "MATH 256B"],
+      "note": "Abstract algebra and algebraic geometry; query avoids 'algebra'."
     }
   ]
 }
