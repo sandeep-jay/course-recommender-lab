@@ -5,18 +5,15 @@
 
 ## Current state
 
-Phases 0–5 plus the judged free-text lens are green: lexical, topic, semantic,
-rerank, and now the Phase 5 graph rung (`recommenders/graph.py`) all run, with
-`python scripts/run_eval.py` regenerating **three** leaderboards — full-truth
-cross-listing + judged free-text (13 rows each) and the new held-out edge lens
-(`leaderboard_heldout.md`, 15 rows: 13 content + 2 graph) — and `pytest` = **112
-passed**, `ruff`/`black` clean. The graph (the one technique allowed to read
-`Cross-Listed Course(s)`) is scored only on a reproducible 30% **held-out edge
-split** and stays off the full-truth leaderboard. Honest finding: on held-out
-twins the graph recovers only ~23% (NDCG@10 0.131) while content methods score
-~0.89–0.91 — twin text is near-identical, so structure adds nothing text didn't
-already have; metadata aux nodes raise coverage/diversity but not twin recovery
-(ADR-0006).
+Phases 0–5 plus the judged free-text lens are green; `python scripts/run_eval.py`
+regenerates three leaderboards (full-truth cross-listing + judged free-text, 13
+rows each; the new held-out edge lens `leaderboard_heldout.md`, 15 rows) and
+`pytest` = **112 passed**, `ruff`/`black` clean. The Phase 5 graph
+(`recommenders/graph.py`, the one technique allowed to read `Cross-Listed
+Course(s)`) is scored only on a reproducible 30% held-out edge split and kept off
+the full-truth board; on held-out twins it recovers only ~23% (NDCG@10 0.131)
+versus content methods' ~0.89–0.91 (ADR-0006). The open thread is which Track-B
+rung comes next — Phase 6 clustering/UMAP vs. metadata fusion.
 
 ## Next task
 
@@ -34,7 +31,8 @@ unbuilt Track-B rung if a ranker is preferred over a diagnostic next.)
 
 ## Blockers / waiting-on
 
-None.
+Phase 5 is committed on branch `feat/phase5-graph-heldout` (commit `980a275`),
+**not yet merged into `main`** — Sandeep to merge / fast-forward.
 
 ## First task for next session
 
