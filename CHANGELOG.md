@@ -6,6 +6,34 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 ## [Unreleased]
 
 ### Added
+- **Phase 7 / B.8 — LLM enrichment via local Ollama (tag-extraction rung).**
+  - `src/courserec/recommenders/llm.py` — `LLMTagRecommender`: a local LLM
+    (Ollama, **qwen3:8b**, no API key) extracts structured tags
+    (topics/skills/level/prereqs-mentioned) per course via Ollama's JSON-schema
+    `format`; the rung ranks by TF-IDF cosine over the tag **profile**
+    (topics+skills+prereqs), with raw-text fallback for un-enriched courses.
+    `OllamaClient` is stdlib `urllib` → **zero new dependencies**. `fit` reads the
+    tag cache only (never generates); tags cache to `artifacts/llmcache/<model>/`
+    keyed `sha1(model+normalized_text)`. Skips+flags (`LLMUnavailable`) only when
+    nothing is cached *and* Ollama is unreachable — else degrades to raw text
+    (ADR-0009).
+  - `scripts/enrich_catalog.py` — the slow, resumable generation pass; enriches
+    the **eval-relevant subset** (cross-listing seeds+twins + judged gold) by
+    default, `--all` for the full catalog, `--model` to swap models.
+  - `scripts/run_eval.py` — `LLMTagRecommender` added; `LLMUnavailable` joins the
+    graceful-skip `except`; a **"Partial LLM enrichment"** coverage note is written
+    onto all three leaderboards so the confounded number is not misread.
+  - `src/courserec/config.py` — `OLLAMA_HOST`, `DEFAULT_LLM_MODEL`.
+  - `tests/test_llm.py` — 13 tests with a `FakeClient` (no daemon): contract,
+    cache-read `fit`, resumable enrichment, raw-text fallback, skip-when-cold.
+    Suite: **148 passed** (was 135).
+  - **First result (subset-enriched, ADR-0009 / RESULTS Phase 7):**
+    `llm_tags(qwen3:8b)` tops every lexical/topic baseline on both lenses
+    (cross-list 0.960 vs tfidf 0.955; free-text 0.585 vs 0.461), behind only SBERT
+    — **but only 1,390/11,073 courses (12.5%, the eval targets) are enriched**, so
+    part of the lift is a target/distractor vocabulary-separation artifact. The
+    free-text win (query enriched live → tag normalization) is the trustworthy
+    signal; `enrich_catalog.py --all` is the documented clean-confirmation step.
 - **Phase 5 / B.5 — metadata fusion (weighted one-hot facets ⊕ TF-IDF).**
   - `src/courserec/recommenders/metadata.py` — `MetadataRecommender`, a Track-B
     ranker that fuses a TF-IDF text block with a one-hot **subject + department +

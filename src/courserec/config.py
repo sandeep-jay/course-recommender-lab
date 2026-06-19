@@ -7,10 +7,17 @@ single import for the random seed.
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 # Global seed for any stochastic step, so runs are reproducible.
 RANDOM_SEED: int = 42
+
+# Local Ollama endpoint for the Phase 7 LLM enrichment rung (no API key — the
+# repo's local-only guarantee). Overridable via OLLAMA_HOST; the default is the
+# Ollama daemon's standard address. Not a credential, so an env default is fine.
+OLLAMA_HOST: str = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
+DEFAULT_LLM_MODEL: str = "qwen3:8b"
 
 # The catalog's null sentinel. Anything equal to this string is missing data,
 # never a real value. See docs/roadmap/recommender_plan.md §0.

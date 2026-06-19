@@ -5,43 +5,47 @@
 
 ## Current state
 
-Phases 0–6 plus metadata fusion (Phase 5 / B.5) and the judged free-text lens are
-green; `python scripts/run_eval.py` regenerates the three leaderboards and
-`python scripts/run_clustering.py` regenerates the Phase 6 diagnostic, with
-`pytest` = **135 passed** and `ruff`/`black` clean. Metadata fusion
-(`src/courserec/recommenders/metadata.py`, a `Recommender`) fuses a TF-IDF text
-block with a weighted one-hot subject+department+level+units block (score
-`λ²·cos_text + (1−λ)²·cos_meta`); it **loses** on the cross-listing lens
-monotonically in λ (0.948→0.936→0.909 vs 0.955 TF-IDF) because 99.7% of
-cross-listing edges span different subjects, and ties the baseline exactly on the
-free-text lens (zero metadata in a query) — an honest negative documented in
-ADR-0008. Track A/B techniques remaining are Phase 7 LLM enrichment and Phase 8
-the Streamlit UI.
+Phases 0–7a are green: metadata fusion (Phase 5/B.5) and the **LLM tag-extraction
+rung (Phase 7/B.8, part a)** both land on the leaderboards, with `pytest` = **148
+passed** and `ruff`/`black` clean. The LLM rung
+(`src/courserec/recommenders/llm.py`, `LLMTagRecommender`) ranks by TF-IDF cosine
+over **local-Ollama** (qwen3:8b, no key, stdlib `urllib`, zero new deps) tag
+profiles; `fit` only reads a cache that the resumable `scripts/enrich_catalog.py`
+pass fills. First result: it tops every lexical baseline on both lenses (cross-list
+0.960, free-text 0.585) **but only 1,390/11,073 courses (12.5%, the eval targets)
+are enriched**, so the cross-listing number is confounded by target/distractor
+vocabulary separation (leaderboards carry a "Partial LLM enrichment" note;
+ADR-0009). The free-text win (query enriched live → tag normalization) is the
+trustworthy signal.
 
 ## Next task
 
-**Phase 7 — LLM enrichment** (recommender_plan.md §2.8, §5):
-`src/courserec/recommenders/llm.py` — (a) LLM extracts structured tags
-(topics/skills/level/prereqs-mentioned) per course → richer features, (b) a
-zero-shot LLM reranker over candidate sets, (c) a one-line "why this fits"
-explanation for the UI. **Must degrade gracefully with no API key** (skip + flag,
-never hard-fail the suite — plan §1), like the API embedding rung.
+Two open Phase-7 threads — pick either:
+1. **Confirm the LLM rung cleanly:** run `python scripts/enrich_catalog.py --all`
+   (full ~11k catalog, multi-hour, resumable, cached) then re-run `run_eval`; this
+   removes the partial-enrichment confound and gives a number comparable to the
+   other rungs.
+2. **Build the rest of Phase 7** (plan §2.8 b/c): the **zero-shot LLM reranker**
+   over candidate sets and the **"why this fits"** explanation for the UI, plus the
+   **LLM-as-judge** validation of the free-text lens (plan §3). Reuse the existing
+   `OllamaClient` + tag cache.
 
 ## Open decisions
 
 | Decision | Options | Owner | Due |
 |---|---|---|---|
-| Phase 7 LLM provider | Anthropic (Claude) vs. OpenAI — pick the SDK + key env for tag extraction / zero-shot rerank, keeping the no-key graceful-skip path | Sandeep | next session |
+| Next Phase-7 step | Full-catalog enrichment to de-confound the tag rung / build the zero-shot reranker + "why this fits" / start Phase 8 Streamlit UI | Sandeep | next session |
 
 ## Blockers / waiting-on
 
-None.
+None. (LLM rung needs `ollama serve` up + `qwen3:8b` pulled for enrichment; eval
+runs fine offline against the warm cache.)
 
 ## First task for next session
 
-Scaffold `src/courserec/recommenders/llm.py` per the `/new-recommender` contract:
-start with the **tag-extraction → richer-feature** path (cache extracted tags to
-`artifacts/<name>/`, key on `sha1(model + normalized_text)` like the embedding
-cache), subclass `Recommender`, raise the graceful-skip exception when no key is
-set, add a contract test, and wire it into `scripts/run_eval.py`. Write an ADR for
-the provider/caching choice.
+Decide between full-catalog enrichment (`enrich_catalog.py --all`, the clean
+confirmation) and building the zero-shot reranker. If the reranker: add a
+`LLMRerankRecommender` that retrieves top-N with SBERT/TF-IDF then reorders with a
+single Ollama call (cached, deterministic), reusing `OllamaClient`; degrade
+gracefully when Ollama is down; contract test with the `FakeClient` pattern; wire
+into `run_eval`; ADR for the rerank-prompt + caching design.

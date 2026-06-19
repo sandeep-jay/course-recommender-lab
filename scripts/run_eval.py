@@ -34,6 +34,7 @@ from courserec.recommenders.embeddings import (
 )
 from courserec.recommenders.graph import GraphRecommender
 from courserec.recommenders.lexical import BM25Recommender, TfidfRecommender
+from courserec.recommenders.llm import LLMTagRecommender, LLMUnavailable
 from courserec.recommenders.metadata import MetadataRecommender
 from courserec.recommenders.rerank import RerankRecommender
 from courserec.recommenders.topics import (
@@ -87,6 +88,12 @@ def build_recommenders() -> list[Recommender]:
         MetadataRecommender(text_weight=0.9),
         MetadataRecommender(text_weight=0.7),
         MetadataRecommender(text_weight=0.5),
+        # Phase 7 / Track B.8 — LLM enrichment. Ranks by TF-IDF cosine over
+        # LLM-distilled tag profiles (topics+skills+prereqs) instead of raw text;
+        # courses without cached tags fall back to raw text. fit() reads the tag
+        # cache only — run `python scripts/enrich_catalog.py` (Ollama up) first.
+        # Skips + flags when no tags are cached and Ollama is unreachable.
+        LLMTagRecommender(),
     ]
 
 
@@ -210,6 +217,31 @@ def _skip_note(label: str, names: list[str], reason: str) -> tuple[str, ...]:
     return (f"**{label} ({len(names)}):** {listed} — {reason}.",)
 
 
+def _llm_coverage_note(
+    fitted: list[tuple[Recommender, float]], n_total: int
+) -> tuple[str, ...]:
+    """Flag partial LLM enrichment on the leaderboard (empty if no LLM rung ran).
+
+    The LLM rung's eval *targets* are enriched but most *distractors* are not, so a
+    chunk of its lift over lexical is a vocabulary-separation artifact, not pure
+    semantic quality. Surfacing the coverage on the board itself keeps that from
+    being misread (plan §6 honest-eval discipline).
+    """
+    notes: list[str] = []
+    for rec, _ in fitted:
+        if isinstance(rec, LLMTagRecommender):
+            pct = 100.0 * rec._n_enriched / n_total if n_total else 0.0
+            notes.append(
+                f"**Partial LLM enrichment:** `{rec.name}` has tags for "
+                f"{rec._n_enriched}/{n_total} courses ({pct:.0f}%, the eval-relevant "
+                "subset); the rest fall back to raw text. Targets are enriched but "
+                "most distractors are not, so its lift over lexical is partly a "
+                "vocabulary-separation artifact — run `scripts/enrich_catalog.py "
+                "--all` to confirm on the full catalog."
+            )
+    return tuple(notes)
+
+
 def main() -> None:
     """Load data, fit + score every technique on both lenses, write leaderboards."""
     parser = argparse.ArgumentParser(description=__doc__)
@@ -239,7 +271,7 @@ def main() -> None:
         start = time.perf_counter()
         try:
             rec.fit(courses)
-        except EmbeddingsUnavailable as exc:
+        except (EmbeddingsUnavailable, LLMUnavailable) as exc:
             # API/optional-dep techniques degrade gracefully: skip + flag, never
             # fail the suite (the repo must run local-only with no key).
             logger.warning("%s: unavailable — %s", rec.name, exc)
@@ -278,12 +310,13 @@ def main() -> None:
     unavailable_note = _skip_note(
         "Unavailable", unavailable, "missing optional dependency or API key"
     )
+    llm_note = _llm_coverage_note(fitted, len(courses))
     frame = write_leaderboard(
         crosslist,
         stem="leaderboard",
         title="Leaderboard — cross-listing lens",
         subtitle="Sorted by NDCG@10. Regenerate with `python scripts/run_eval.py`.",
-        notes=unavailable_note,
+        notes=unavailable_note + llm_note,
     )
     print("\n== Cross-listing lens ==")
     print(frame[["name", "ndcg@10", "ndcg@10_ci_low", "ndcg@10_ci_high", "recall@10"]])
@@ -299,6 +332,7 @@ def main() -> None:
             ),
             drop_cols=("same_subject@10",),
             notes=unavailable_note
+            + llm_note
             + _skip_note(
                 "Text mode not implemented",
                 text_skipped,
@@ -352,6 +386,7 @@ def main() -> None:
             "content methods never read the column. Sorted by NDCG@10."
         ),
         notes=unavailable_note
+        + llm_note
         + (
             "**Leakage discipline:** `graph(...)` is the one technique that reads "
             "`Cross-Listed Course(s)`, so it is scored only on edges withheld from "

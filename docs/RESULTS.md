@@ -5,6 +5,68 @@ Findings as each phase lands. The leaderboard itself
 `python scripts/run_eval.py` and never hand-edited; this file is the
 interpretation.
 
+## Phase 7 / B.8 — LLM enrichment via local Ollama (tag-extraction rung)
+
+Phase 7 adds the LLM rung (`recommenders/llm.py`): a local LLM (Ollama,
+**qwen3:8b**, no API key — plan §1) reads each course and emits structured tags
+(topics, skills, level, prereqs-mentioned); the rung ranks by TF-IDF cosine over
+those **tag profiles** (topics+skills+prereqs), with raw-text fallback for any
+course not yet enriched. Enrichment is a separate, cached, resumable pass
+(`scripts/enrich_catalog.py`) so `fit` only reads the cache and the eval stays
+fast. See [ADR-0009](adr/0009-llm-enrichment-ollama.md).
+
+### Headline — beats every lexical baseline on both lenses… with an asterisk
+
+| Technique | Cross-list NDCG@10 | 95% CI | Free-text NDCG@10 | 95% CI |
+|---|---|---|---|---|
+| sbert (MiniLM) | 0.9710 | [0.965, 0.976] | 0.6821 | [0.613, 0.747] |
+| **llm_tags (qwen3:8b)** | **0.9603** | **[0.952, 0.967]** | **0.5847** | **[0.503, 0.662]** |
+| tfidf (unigram, baseline) | 0.9553 | [0.947, 0.964] | 0.4607 | [0.388, 0.524] |
+| best bm25 | 0.9582 | [0.951, 0.966] | 0.4923 | [0.413, 0.566] |
+
+On the subset-enriched run the LLM rung outranks **all** lexical and topic
+baselines on the primary cross-listing lens (0.960 vs tfidf 0.955, behind only the
+two SBERT models) and, more strikingly, lifts the free-text lens to **0.585** —
++0.12 NDCG@10 over the best lexical method, behind only SBERT and the SBERT-based
+reranker.
+
+### The asterisk — partial enrichment confounds the comparison
+
+Only **1,390 of 11,073 courses (12.5%)** are enriched, and by construction those
+are exactly the eval *targets* (cross-listing seeds + twins + judged gold; the
+"eval-relevant subset"). So the targets occupy tag-vocabulary space while ~87% of
+*distractors* still sit in raw-text space — and two different vocabularies are
+trivially easy to separate. **A real share of the lift is this vocabulary-separation
+artifact, not the model's semantic quality.** The leaderboards carry a "Partial LLM
+enrichment" note so the number is not read as a clean win.
+
+What is *probably* genuine, and should survive full enrichment:
+
+1. **The free-text lens.** Here the query itself is enriched to tags at request
+   time and matched against course tags, so the win is normalization (synonyms →
+   one canonical topic; "ML" and "machine learning" collapse), the exact thing
+   lexical can't do — not just target/distractor vocabulary split. This is the
+   expected payoff and the most trustworthy signal in the table.
+2. **Tag quality is real.** Spot checks are clean and discriminative (e.g.
+   AEROENG C124 → `composite materials, mechanical properties, aircraft
+   structures, nanocomposites`), so the features are sound; the open question is
+   purely the eval confound, not the extraction.
+
+### What this says / next step
+
+- **Don't crown it yet.** The honest read is "promising, beats lexical, but the
+  headline cross-listing number is inflated by partial enrichment." The clean
+  experiment is `python scripts/enrich_catalog.py --all` (full catalog, a
+  multi-hour one-time pass) followed by a re-run; that removes the
+  target/distractor vocabulary split and gives a number comparable to the other
+  rungs. Deferred deliberately — Phase 7 was scoped "subset first" (plan §5).
+- **Local, keyless, zero-cost, zero new dependencies.** The whole rung runs on
+  Ollama over stdlib `urllib`; the repo's offline guarantee is untouched, and the
+  rung skips+flags (never hard-fails) when Ollama is down and nothing is cached.
+- **Still to build in Phase 7:** the zero-shot LLM reranker over candidate sets
+  and the "why this fits" explanation for the UI (plan §2.8 b/c), plus the
+  LLM-as-judge validation of the free-text lens (plan §3).
+
 ## Phase 6 — clustering + 2-D map over the SBERT embeddings (diagnostic)
 
 Phase 6 adds `src/courserec/cluster.py` and `scripts/run_clustering.py` — a
