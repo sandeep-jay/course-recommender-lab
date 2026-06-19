@@ -31,8 +31,7 @@ unbuilt Track-B rung if a ranker is preferred over a diagnostic next.)
 
 ## Blockers / waiting-on
 
-Phase 5 is committed on branch `feat/phase5-graph-heldout` (commit `980a275`),
-**not yet merged into `main`** — Sandeep to merge / fast-forward.
+None.
 
 ## First task for next session
 
