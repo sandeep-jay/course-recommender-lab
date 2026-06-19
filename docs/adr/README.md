@@ -9,3 +9,4 @@ One file per decision, format `NNNN-short-slug.md`. Write new ones with `/new-ad
 | [0003](0003-judged-query-lens.md) | A hand-labeled judged-query set for the free-text lens | Accepted | 2026-06-03 |
 | [0004](0004-semantic-vectors.md) | Semantic-vector recommenders (SBERT local + API), caching and ANN | Accepted | 2026-06-03 |
 | [0005](0005-rerank-mmr.md) | Retrieve → cross-encoder rerank → MMR diversity | Accepted | 2026-06-06 |
+| [0006](0006-graph-heldout.md) | Course graph (PPR) on a held-out cross-listing edge split | Accepted | 2026-06-19 |

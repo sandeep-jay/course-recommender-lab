@@ -16,6 +16,7 @@ numbers see [RESULTS.md](RESULTS.md) and the
 | **SBERT MPNet** (`all-mpnet-base-v2`) | ≈ MiniLM (xlist 0.971, text 0.635); larger 768-d model didn't beat the small one here | Fit ~170 s (encode 11k); query ~0.5 ms | Low — opaque 768-d vector | None at query (local); torch dep | Fine — pretrained | Medium–high | When a bigger encoder is warranted — not demonstrably here; MiniLM is the better speed/quality trade |
 | **API embeddings** (`text-embedding-3-small`) | Unmeasured — **skipped** (no key; runs local-only) | Network-bound; cost-logged | Low — opaque vector | $ per token (logged) | Fine — pretrained | Medium | A managed encoder when a key exists and local compute is constrained |
 | **Rerank** (SBERT retrieve → `ms-marco-MiniLM` cross-encoder → MMR) | Did **not** beat the bi-encoder here (xlist 0.960, text 0.610 at λ=1.0 vs MiniLM 0.971/0.682) — domain-mismatched reranker, twins already rank first | Query ~70–80 ms (50 cross-encoder passes) — slowest by far | Low — cross-encoder logit + MMR trade-off score | None at query (local); torch dep | Fine — reuses base retriever | High (two stages + MMR) | You need a **diversity knob** (MMR λ moves intra-list diversity), or a domain-tuned cross-encoder is available; not for raw relevance on this catalog |
+| **Graph (PPR)** (RWR over cross-listing + subject/dept aux nodes) | **Far below text** on held-out twins (NDCG@10 0.131 vs SBERT 0.913) — recovers only ~23%; isolated twin pairs are unrecoverable once their edge is withheld | Fit < 0.05 s; query ~0.4 ms (meta=off) / ~2.6 ms (meta=on) | Medium — proximity is a walk over an inspectable graph | None (local); **zero new deps** (pure `scipy.sparse`) | Poor — needs cross-listing edges; a course with none gets nothing | Medium (graph build + power-iteration RWR) | Edges encode signal **absent from text** (prereqs, sequence, co-enrollment) — *not* this catalog, where twin text is near-identical |
 
 ## Notes by dimension
 
@@ -67,4 +68,17 @@ numbers see [RESULTS.md](RESULTS.md) and the
   *trails* plain SBERT at ~70–80 ms/query. Value is diversity control + a hook for
   a domain-tuned cross-encoder; see [ADR-0005](adr/0005-rerank-mmr.md).
 
-_Metadata fusion, graph, and LLM rows land in later phases._
+- **Graph-specific (Phase 5).** The graph is the one technique allowed to read
+  `Cross-Listed Course(s)`, so it is scored only on a **held-out edge split**
+  (its own leaderboard, [leaderboard_heldout.md](../results/leaderboard_heldout.md);
+  numbers there are a *harder* task than the full-truth file and not comparable
+  across files). The honest result: personalized-PageRank proximity recovers only
+  ~23% of withheld twins (NDCG@10 0.131) while text methods, which never needed
+  the edge, score ~0.89–0.91 — twin text is near-identical, so structure adds
+  nothing text didn't already have. Metadata aux nodes (`meta=on`) raise
+  coverage/diversity (same-subject@10 0.00→0.82, diversity 0.01→0.87) but not
+  twin recovery, since twins span subjects. A graph would pay off only on edges
+  text can't see (prereqs, curricular sequence); see
+  [ADR-0006](adr/0006-graph-heldout.md).
+
+_Metadata fusion and LLM rows land in later phases._

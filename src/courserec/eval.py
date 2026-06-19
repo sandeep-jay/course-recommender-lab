@@ -68,8 +68,47 @@ def _resolve_refs(value: str, nospace: dict[str, str]) -> list[str]:
     return out
 
 
+def crosslist_edges(courses: pd.DataFrame) -> set[frozenset[str]]:
+    """Resolve every cross-listing into an undirected ``{a, b}`` course-id edge.
+
+    The single source of truth for which courses are cross-listed: both the
+    ground-truth builder and the graph technique derive their edges from here so
+    a held-out split and the graph's training set stay perfectly consistent.
+
+    Args:
+        courses: Processed catalog indexed by ``course_id`` with a
+            ``cross_listed`` column.
+
+    Returns:
+        The set of undirected edges (2-element frozensets); self-references and
+        out-of-catalog references are dropped.
+    """
+    nospace = {cid.replace(" ", ""): cid for cid in courses.index}
+    edges: set[frozenset[str]] = set()
+    for cid, value in courses["cross_listed"].dropna().items():
+        for twin in _resolve_refs(value, nospace):
+            if twin != cid:
+                edges.add(frozenset((cid, twin)))
+    return edges
+
+
+def _edges_to_truth(edges: Iterable[frozenset[str]]) -> CrossListTruth:
+    """Expand undirected edges into a symmetric seed -> twins truth mapping."""
+    truth: CrossListTruth = {}
+    for edge in edges:
+        a, b = tuple(edge)
+        truth.setdefault(a, set()).add(b)
+        truth.setdefault(b, set()).add(a)
+    return truth
+
+
 def build_crosslist_truth(courses: pd.DataFrame) -> CrossListTruth:
     """Build the cross-listing ground truth: seed -> set of twin ``course_id``s.
+
+    Kept directional (a seed is a course whose own ``cross_listed`` cell names an
+    in-catalog twin) so the established cross-listing leaderboard is unchanged by
+    Phase 5. The undirected, symmetric view used by the graph and its held-out
+    split lives in :func:`crosslist_edges` instead.
 
     Args:
         courses: Processed catalog indexed by ``course_id`` with a
@@ -87,6 +126,79 @@ def build_crosslist_truth(courses: pd.DataFrame) -> CrossListTruth:
             truth[cid] = twins
     logger.info("Cross-listing truth: %d seeds with in-catalog twins", len(truth))
     return truth
+
+
+# --------------------------------------------------------------------------- #
+# Held-out edge split (for the graph technique only — plan §2.6 leakage rule)  #
+# --------------------------------------------------------------------------- #
+
+
+@dataclass(frozen=True)
+class CrossListSplit:
+    """A leakage-free split of cross-listing edges for evaluating the graph model.
+
+    The graph technique is the one method permitted to read ``Cross-Listed
+    Course(s)`` as input, so it must be scored only on edges it never saw. This
+    splits the undirected cross-listing edges into a training set (the graph may
+    use these) and a held-out test set (the evaluation target).
+
+    Attributes:
+        train_truth: Seed -> twins from the training edges (what the graph sees).
+        test_truth: Seed -> twins from the held-out edges (the eval target).
+        held_out_edges: The undirected edges removed from training; the graph
+            subtracts exactly these when building its adjacency.
+    """
+
+    train_truth: CrossListTruth
+    test_truth: CrossListTruth
+    held_out_edges: frozenset[frozenset[str]]
+
+
+def split_crosslist_edges(
+    truth: CrossListTruth, *, test_frac: float = 0.3, seed: int = RANDOM_SEED
+) -> CrossListSplit:
+    """Split cross-listing edges into train / held-out test sets reproducibly.
+
+    Args:
+        truth: Full cross-listing ground truth from :func:`build_crosslist_truth`.
+        test_frac: Fraction of undirected edges to hold out for evaluation.
+        seed: RNG seed (defaults to the global ``RANDOM_SEED``).
+
+    Returns:
+        A :class:`CrossListSplit`. A course may keep some training edges while a
+        different edge of its own is held out — that is the realistic
+        link-prediction setting we want.
+
+    Raises:
+        ValueError: If ``test_frac`` is not in the open interval ``(0, 1)``.
+    """
+    if not 0.0 < test_frac < 1.0:
+        raise ValueError("test_frac must be in (0, 1)")
+    # Sort edges to a canonical order so the permutation is deterministic across
+    # runs regardless of set-iteration order.
+    edges = sorted(
+        ({frozenset((a, b)) for a, twins in truth.items() for b in twins}),
+        key=lambda e: tuple(sorted(e)),
+    )
+    rng = np.random.default_rng(seed)
+    perm = rng.permutation(len(edges))
+    n_test = max(1, round(len(edges) * test_frac)) if edges else 0
+    test_pos = set(perm[:n_test].tolist())
+
+    train_edges = [e for i, e in enumerate(edges) if i not in test_pos]
+    held_out = [e for i, e in enumerate(edges) if i in test_pos]
+    logger.info(
+        "Cross-listing edge split: %d train, %d held-out (test_frac=%.2f, seed=%d)",
+        len(train_edges),
+        len(held_out),
+        test_frac,
+        seed,
+    )
+    return CrossListSplit(
+        train_truth=_edges_to_truth(train_edges),
+        test_truth=_edges_to_truth(held_out),
+        held_out_edges=frozenset(held_out),
+    )
 
 
 # --------------------------------------------------------------------------- #

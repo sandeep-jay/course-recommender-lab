@@ -5,6 +5,67 @@ Findings as each phase lands. The leaderboard itself
 `python scripts/run_eval.py` and never hand-edited; this file is the
 interpretation.
 
+## Phase 5 — course graph (PPR) on a held-out cross-listing edge split
+
+Phase 5 adds the graph rung (`recommenders/graph.py`) — the one technique allowed
+to read `Cross-Listed Course(s)` — and the machinery that keeps that read
+leakage-free: a 30% **held-out edge split** (`eval.split_crosslist_edges`) and a
+third leaderboard, [results/leaderboard_heldout.md](../results/leaderboard_heldout.md),
+where the graph and every content method predict the **same 219 withheld edges
+(388 seeds)**. The graph ranks by personalized-PageRank proximity (random walk
+with restart) over a course graph with subject/department auxiliary nodes; two
+configs (`meta=on`/`meta=off`) isolate the metadata glue. See
+[ADR-0006](adr/0006-graph-heldout.md).
+
+### Headline — on held-out twins, text crushes structure
+
+| Technique | Held-out NDCG@10 | 95% CI | Recall@10 | same-subj@10 | diversity |
+|---|---|---|---|---|---|
+| sbert (MiniLM) | 0.9126 | [0.895, 0.928] | 1.000 | 0.205 | 0.692 |
+| tfidf (unigram) | 0.8945 | [0.873, 0.914] | 0.990 | 0.186 | 0.232 |
+| nmf (k=50) | 0.8898 | [0.869, 0.909] | 0.990 | 0.097 | 0.240 |
+| **graph (meta=off)** | **0.1311** | **[0.109, 0.155]** | **0.229** | 0.000 | 0.014 |
+| **graph (meta=on)** | **0.1300** | **[0.108, 0.155]** | **0.229** | 0.816 | 0.867 |
+
+The content methods score ~0.89–0.91 — essentially their full-truth numbers —
+because **a held-out edge costs a text method nothing**: cross-listed twins share
+near-identical title+description, so the twin is still rank 1 from text alone. The
+graph, the only method actually doing leakage-free link prediction, recovers just
+**~23% of held-out twins** (NDCG@10 0.131, CI [0.109, 0.155] — far below every
+content row).
+
+### Why the graph hits a ceiling — and why metadata can't lift it
+
+1. **Most cross-listings are isolated pairs.** Mean ~1.35 twins/seed: when a
+   pair's *only* edge is the one held out, no walk can reach the twin — there is
+   no surviving path. The ~23% the graph does recover are edges inside larger
+   (3+-way) cross-listing components, where transitivity survives one removal.
+   This is the structural ceiling, and the held-out split exists precisely to
+   expose it rather than let the graph "win" by reading its own target.
+2. **Metadata glue raises coverage, not recovery.** Turning subject/department
+   aux nodes on barely moves NDCG@10 (0.130 vs 0.131 — a tie inside the CI) yet
+   transforms the *list shape*: same-subject@10 jumps 0.00 → 0.82, diversity
+   0.01 → 0.87, coverage 0.014 → 0.182. The walk now floods the top-k with
+   same-subject/department neighbors — but cross-listed twins frequently span
+   subjects (that is what makes them interesting), so those neighbors are almost
+   never the withheld twin. The glue makes recommendations *look* fuller without
+   recovering the target.
+
+### What this says
+
+- **The graph is not a similarity ranker for this catalog, and the eval proves
+  it honestly.** Where text is near-identical (twins), structure adds nothing a
+  bag-of-words model didn't already have. A graph earns its keep when edges
+  encode signal *absent from text* — prerequisite chains, co-enrollment,
+  curricular sequence — none of which this catalog has. Documented, not hidden.
+- **The held-out discipline worked.** The graph reads the leak column yet is
+  scored only on edges withheld from training; the comparison sits in its own
+  leaderboard with a header note that it is a harder task than the full-truth
+  file, so nothing is crowned across incomparable numbers.
+- **PPR cost is trivial** (~0.4 ms/query meta=off, ~2.6 ms meta=on; fit < 0.05 s)
+  and needs **zero new dependencies** — node2vec was rejected to avoid a heavy
+  `gensim` dependency for a method whose ceiling is structural, not encoder-bound.
+
 ## Phase 4 — retrieve → cross-encoder rerank → MMR (+ a harder judged set)
 
 Two things landed together: the **Phase 4 rerank rung** (a MiniLM bi-encoder

@@ -16,6 +16,7 @@ import pandas as pd
 from courserec.config import RESULTS_DIR
 from courserec.data import load_processed
 from courserec.eval import (
+    CrossListSplit,
     EvalResult,
     build_crosslist_truth,
     build_reference_space,
@@ -23,6 +24,7 @@ from courserec.eval import (
     recommender_supports_text,
     score_crosslist,
     score_text_queries,
+    split_crosslist_edges,
 )
 from courserec.interfaces import Recommender
 from courserec.recommenders.embeddings import (
@@ -30,6 +32,7 @@ from courserec.recommenders.embeddings import (
     EmbeddingsUnavailable,
     SbertRecommender,
 )
+from courserec.recommenders.graph import GraphRecommender
 from courserec.recommenders.lexical import BM25Recommender, TfidfRecommender
 from courserec.recommenders.rerank import RerankRecommender
 from courserec.recommenders.topics import (
@@ -76,6 +79,68 @@ def build_recommenders() -> list[Recommender]:
         RerankRecommender(mmr_lambda=0.5),
         RerankRecommender(mmr_lambda=0.3),
     ]
+
+
+def build_graph_recommenders(
+    held_out_edges: frozenset[frozenset[str]],
+) -> list[GraphRecommender]:
+    """Instantiate the Phase 5 graph sweep, each withholding the held-out edges.
+
+    Two configs isolate the contribution of the metadata "glue": the full graph
+    (cross-listings + subject/department aux nodes) and a cross-listings-only
+    structural baseline. Both exclude the held-out edges so the cross-listing
+    read stays leakage-free (plan §2.6).
+
+    Args:
+        held_out_edges: The evaluation-target edges to withhold from training.
+
+    Returns:
+        The graph recommenders to score on the held-out edge split.
+    """
+    return [
+        GraphRecommender(use_metadata=True, held_out_edges=held_out_edges),
+        GraphRecommender(use_metadata=False, held_out_edges=held_out_edges),
+    ]
+
+
+def _score_heldout(
+    recs: list[tuple[Recommender, float]],
+    split: CrossListSplit,
+    courses: pd.DataFrame,
+    reference: tuple,
+    *,
+    n_boot: int,
+) -> list[EvalResult]:
+    """Score already-fitted content recommenders on the held-out edge split.
+
+    Content methods never read the cross-listing column, so there is no leakage
+    in reusing the instance fit on the full catalog — only the evaluation target
+    changes to the held-out twins. This makes the graph row comparable against a
+    real content baseline on the identical, harder link-prediction task.
+
+    Args:
+        recs: ``(fitted recommender, fit_time_s)`` pairs from the main loop.
+        split: The cross-listing edge split (held-out edges are the target).
+        courses: Processed catalog indexed by ``course_id``.
+        reference: Output of :func:`build_reference_space` for diversity.
+        n_boot: Bootstrap resamples for the NDCG@10 CI.
+
+    Returns:
+        One :class:`EvalResult` per content recommender on the held-out target.
+    """
+    results = []
+    for rec, fit_time in recs:
+        results.append(
+            score_crosslist(
+                rec,
+                courses,
+                split.test_truth,
+                reference,
+                fit_time_s=fit_time,
+                n_boot=n_boot,
+            )
+        )
+    return results
 
 
 def _to_markdown(frame: pd.DataFrame) -> str:
@@ -159,6 +224,7 @@ def main() -> None:
     text: list[EvalResult] = []
     text_skipped: list[str] = []
     unavailable: list[str] = []
+    fitted: list[tuple[Recommender, float]] = []  # for the held-out comparison
     for rec in build_recommenders():
         logger.info("Fitting %s", rec.name)
         start = time.perf_counter()
@@ -171,6 +237,7 @@ def main() -> None:
             unavailable.append(rec.name)
             continue
         fit_time = time.perf_counter() - start
+        fitted.append((rec, fit_time))
         crosslist.append(
             score_crosslist(
                 rec,
@@ -235,6 +302,60 @@ def main() -> None:
                 ["name", "ndcg@10", "ndcg@10_ci_low", "ndcg@10_ci_high", "recall@10"]
             ]
         )
+
+    # ----------------------------------------------------------------------- #
+    # Held-out edge lens (Phase 5 graph) — the only leakage-free way to score #
+    # a technique that reads cross-listings. The graph trains on the train    #
+    # edges; every method is scored on the *same* held-out twins, so the      #
+    # graph is compared fairly against content baselines on the harder        #
+    # link-prediction task (plan §2.6, §3 leakage discipline).                #
+    # ----------------------------------------------------------------------- #
+    split = split_crosslist_edges(truth)
+    heldout: list[EvalResult] = _score_heldout(
+        fitted, split, courses, reference, n_boot=args.bootstrap
+    )
+    for graph in build_graph_recommenders(split.held_out_edges):
+        logger.info(
+            "Fitting %s (held-out: %d edges)", graph.name, len(split.held_out_edges)
+        )
+        start = time.perf_counter()
+        graph.fit(courses)
+        graph_fit_time = time.perf_counter() - start
+        heldout.append(
+            score_crosslist(
+                graph,
+                courses,
+                split.test_truth,
+                reference,
+                fit_time_s=graph_fit_time,
+                n_boot=args.bootstrap,
+            )
+        )
+
+    n_test_seeds = len(split.test_truth)
+    heldout_frame = write_leaderboard(
+        heldout,
+        stem="leaderboard_heldout",
+        title="Leaderboard — held-out cross-listing edge lens",
+        subtitle=(
+            f"Predict {len(split.held_out_edges)} held-out cross-listing edges "
+            f"({n_test_seeds} seeds). The graph trains on the remaining edges; "
+            "content methods never read the column. Sorted by NDCG@10."
+        ),
+        notes=unavailable_note
+        + (
+            "**Leakage discipline:** `graph(...)` is the one technique that reads "
+            "`Cross-Listed Course(s)`, so it is scored only on edges withheld from "
+            "its training (plan §2.6). This is a harder task than the full-truth "
+            "`leaderboard.md` — the numbers are not comparable across files.",
+        ),
+    )
+    print("\n== Held-out cross-listing edge lens ==")
+    print(
+        heldout_frame[
+            ["name", "ndcg@10", "ndcg@10_ci_low", "ndcg@10_ci_high", "recall@10"]
+        ]
+    )
 
 
 if __name__ == "__main__":

@@ -6,6 +6,44 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 ## [Unreleased]
 
 ### Added
+- **Phase 5 — course graph (PPR) on a held-out cross-listing edge split.**
+  - `src/courserec/recommenders/graph.py` — `GraphRecommender`: the one technique
+    permitted to read `Cross-Listed Course(s)`. Ranks by personalized-PageRank
+    proximity (random walk with restart, `r = (1−c)·P·r + c·eₛ`, solved by power
+    iteration) over a graph of course nodes + subject/department **auxiliary
+    nodes** (a star, not an `O(n²)` same-group clique). Edge weights `w_xlist`
+    (cross-listings) and `w_meta` (metadata). Item-to-item only —
+    `recommend_by_text` raises `NotImplementedError`. Pure `scipy.sparse`, **no
+    new dependencies** (node2vec/gensim rejected — see ADR-0006). Adjacency +
+    node index persist to `artifacts/<slug>/` under a fingerprint that includes
+    the held-out edge set.
+  - `src/courserec/eval.py` — `crosslist_edges` (the undirected/symmetric edge
+    view used by the graph + split) and `_edges_to_truth`, plus `CrossListSplit`
+    + `split_crosslist_edges` (reproducible 30% held-out edge split under
+    `RANDOM_SEED`). `build_crosslist_truth` is left **directional and unchanged**,
+    so the established Phase 1–4 cross-listing leaderboard is not perturbed (the
+    edge *set* is identical either way; only the per-seed view differs).
+  - `scripts/run_eval.py` — `build_graph_recommenders`, `_score_heldout`, and a
+    third leaderboard `results/leaderboard_heldout.{md,csv}` where the graph and
+    every content method predict the **same 219 withheld edges (388 seeds)** — a
+    fair, leakage-free comparison. The graph stays **off** the full-truth
+    `leaderboard.md` (scoring it there would be leakage).
+  - `tests/test_graph.py` — contract tests + held-out behavior (twin recovered
+    via transitivity when remaining structure connects it; isolated held-out pair
+    unrecoverable; metadata reconnects via shared dept; cache round-trip).
+    `tests/test_eval.py` — edge + split helper tests. Suite: **112 passed**
+    (was 94).
+  - `docs/adr/0006-graph-heldout.md` — design, the held-out-split leakage guard,
+    node2vec-vs-PPR rationale, and the honest finding.
+  - **Honest finding — on held-out twins, text crushes structure.** The graph
+    recovers only ~23% of withheld twins (NDCG@10 0.131, CI [0.110, 0.156]) while
+    content methods score ~0.89–0.91 (SBERT MiniLM 0.913) — a held-out edge costs
+    a text method nothing, since near-identical twin text keeps the twin at rank 1.
+    Most cross-listings are isolated pairs (mean ~1.35 twins/seed), so a pair's
+    held-out edge is unrecoverable. Metadata glue (`meta=on`) does not lift
+    recovery (0.130, tied) but raises same-subject@10 0.00 → 0.82 and diversity
+    0.01 → 0.87. A graph pays off only on edges absent from text (prereqs,
+    sequence) — this catalog has none. Documented, not hidden.
 - **Phase 4 — retrieve → cross-encoder rerank → MMR diversity.**
   - `src/courserec/recommenders/rerank.py` — `RerankRecommender`: a MiniLM
     `SbertRecommender` retrieves the top `retrieve_n` (50), the cross-encoder

@@ -15,6 +15,7 @@ from courserec.eval import (
     build_crosslist_truth,
     build_reference_space,
     coverage,
+    crosslist_edges,
     intra_list_diversity,
     load_judged_queries,
     ndcg_at_k,
@@ -25,6 +26,7 @@ from courserec.eval import (
     recommender_supports_text,
     score_crosslist,
     score_text_queries,
+    split_crosslist_edges,
 )
 from courserec.interfaces import Rec, Recommender
 from courserec.recommenders.lexical import TfidfRecommender
@@ -51,6 +53,47 @@ def test_crosslist_truth_excludes_self_and_out_of_catalog() -> None:
     )
     truth = build_crosslist_truth(df)
     assert truth == {}  # GHOST999 unresolved; XX1 != "X 1" token, so unresolved
+
+
+def test_crosslist_edges_are_undirected_and_deduped(mini_catalog: pd.DataFrame) -> None:
+    """The twin pair is one undirected edge, regardless of direction."""
+    edges = crosslist_edges(mini_catalog)
+    assert frozenset({"AEROENG C124", "MATSCI C135"}) in edges
+    assert len(edges) == 1
+
+
+# -- held-out edge split -------------------------------------------------------
+
+
+def test_split_partitions_edges_without_overlap() -> None:
+    """Train and held-out edges partition the full edge set with no overlap."""
+    truth = {
+        "A 1": {"B 1"},
+        "B 1": {"A 1", "C 1"},
+        "C 1": {"B 1"},
+        "D 1": {"E 1"},
+        "E 1": {"D 1"},
+    }
+    split = split_crosslist_edges(truth, test_frac=0.5)
+    train_edges = {frozenset((a, b)) for a, tw in split.train_truth.items() for b in tw}
+    full_edges = {frozenset((a, b)) for a, tw in truth.items() for b in tw}
+    assert split.held_out_edges.isdisjoint(train_edges)
+    assert set(split.held_out_edges) | train_edges == full_edges
+    assert len(split.held_out_edges) == 2  # round(4 * 0.5)
+
+
+def test_split_is_deterministic_under_seed() -> None:
+    """The same truth + seed yields the same held-out edges every time."""
+    truth = {"A 1": {"B 1"}, "B 1": {"A 1"}, "C 1": {"D 1"}, "D 1": {"C 1"}}
+    first = split_crosslist_edges(truth, test_frac=0.5)
+    second = split_crosslist_edges(truth, test_frac=0.5)
+    assert first.held_out_edges == second.held_out_edges
+
+
+def test_split_rejects_degenerate_fraction() -> None:
+    """A test fraction outside (0, 1) is rejected."""
+    with pytest.raises(ValueError):
+        split_crosslist_edges({"A 1": {"B 1"}}, test_frac=1.0)
 
 
 # -- ranking metrics -----------------------------------------------------------
