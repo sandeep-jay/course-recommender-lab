@@ -5,6 +5,59 @@ Findings as each phase lands. The leaderboard itself
 `python scripts/run_eval.py` and never hand-edited; this file is the
 interpretation.
 
+## Phase 6 — clustering + 2-D map over the SBERT embeddings (diagnostic)
+
+Phase 6 adds `src/courserec/cluster.py` and `scripts/run_clustering.py` — a
+**diagnostic, not a ranker**. It does not subclass `Recommender` or join any
+leaderboard; it asks whether the SBERT semantic space has *structure*. Output:
+[results/cluster_report.md](../results/cluster_report.md) and a subject-colored
+2-D map at [results/plots/embedding_map.png](../results/plots/embedding_map.png).
+See [ADR-0007](adr/0007-clustering-diagnostic.md).
+
+### Headline — the embedding space is a smooth manifold, not tidy clusters
+
+Three clusterings of the 11,073 MiniLM vectors (`all-MiniLM-L6-v2`):
+
+| algorithm | n_clusters | n_noise | silhouette | subject_purity | largest_frac |
+|---|---|---|---|---|---|
+| kmeans (k=100) | 100 | 0 | 0.116 | 0.328 | 0.024 |
+| agglomerative (ward, k=100) | 100 | 0 | 0.082 | 0.324 | 0.026 |
+| hdbscan (min=15) | 32 | 9,955 | 0.636 | 0.282 | 0.015 |
+
+### What this says
+
+1. **Low silhouette under forced partitions.** KMeans/agglomerative score
+   ~0.08–0.12 — points sit only slightly closer to their own centroid than the
+   next. The vectors form a *continuous* topic manifold, not isolated blobs.
+2. **HDBSCAN confirms it from the other side.** Asked to find density, it labels
+   **90% of the catalog as noise** and keeps only 32 dense cores; its high 0.64
+   silhouette is survivorship — it scores only the easy points it kept.
+3. **Subjects are recovered ~32% from text alone.** No metadata is used, yet a
+   cluster's plurality subject covers ~1/3 of its members (well above the
+   ~1/242-subject floor) — coherent neighborhoods exist, they just blend at the
+   edges. The 2-D map shows exactly this: MECENG, MUSIC, ANTHRO etc. form
+   visible local regions inside one connected cloud.
+4. **No degenerate giant cluster** — the largest is ~2.5% of the catalog, so the
+   moderate purity is real coherence, not one blob swallowing everything.
+
+### Why this matters for the rankers
+
+The smoothness is *why* semantic similarity works for free-text and related-but-
+not-twin queries (Phase 3) yet barely beats lexical on near-duplicate twins: in a
+continuous space, "close" is graded, not categorical. It also frames the
+coverage/diversity numbers — with no hard cluster walls, top-k lists can wander a
+neighborhood rather than collapse onto a clique.
+
+### Honest limitations
+
+- **Projector fell back to t-SNE.** `umap-learn` is in the optional `viz` extra
+  but not installed here, so the map is t-SNE (also a valid plan §2.7 choice);
+  UMAP would give a faster, more global-structure-faithful layout.
+- **Cluster count is a chosen knob.** k=100 is a coarse default (242 subjects);
+  the coherence numbers shift with k. This is a shape probe, not a tuned model.
+- **Silhouette is sampled** (2,000 points) for tractability — a point estimate,
+  not a CI.
+
 ## Phase 5 — course graph (PPR) on a held-out cross-listing edge split
 
 Phase 5 adds the graph rung (`recommenders/graph.py`) — the one technique allowed

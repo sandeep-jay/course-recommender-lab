@@ -6,6 +6,37 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 ## [Unreleased]
 
 ### Added
+- **Phase 6 — clustering + 2-D map over the SBERT embeddings (diagnostic).**
+  - `src/courserec/cluster.py` — a **diagnostic, not a `Recommender`** (no
+    leaderboard row). Clusters the cached MiniLM vectors three ways with
+    **scikit-learn only** (KMeans, Ward agglomerative, `sklearn.cluster.HDBSCAN`
+    — no `hdbscan` package), then reports coherence: sampled cosine `silhouette`,
+    `subject_purity` (size-weighted dominant-subject share — does text recover
+    subjects with no metadata?), `n_noise`, and `largest_cluster_frac`. `project_2d`
+    prefers UMAP and **falls back to t-SNE** when `umap-learn` is absent;
+    `plot_projection` skips+flags the figure if matplotlib is missing — clustering
+    runs on base+`semantic` deps, only the picture needs `viz` (ADR-0007).
+  - `src/courserec/recommenders/embeddings.py` — read-only `embeddings` /
+    `course_ids` properties on `_EmbeddingRecommender` so diagnostics consume the
+    cached SBERT vectors without re-encoding or touching private state.
+  - `scripts/run_clustering.py` — one-command driver; writes
+    `results/cluster_report.{md,csv}` and `results/plots/embedding_map.png`
+    (subject-colored). Skips+flags gracefully when the `semantic` extra is absent.
+  - `pyproject.toml` — new optional `viz` extra (`matplotlib`, `umap-learn`);
+    `src/courserec/config.py` — `PLOTS_DIR`.
+  - `tests/test_cluster.py` — synthetic-blob contract tests (labels align, KMeans
+    recovers blobs at purity 1.0, purity ignores noise, silhouette `nan` on a
+    single cluster, t-SNE shape, plot renders, report lists algorithms). Suite:
+    **125 passed** (was 112).
+  - `docs/adr/0007-clustering-diagnostic.md`, `docs/RESULTS.md` Phase 6,
+    `docs/TRADEOFFS.md` clustering note.
+  - **Finding — the SBERT space is a smooth manifold, not tidy clusters.** Forced
+    k=100 partitions score low silhouette (kmeans 0.116, agglomerative 0.082) and
+    HDBSCAN labels **90% of the catalog (9,955/11,073) as noise**, keeping only 32
+    dense cores; subject purity ~0.28–0.33 (no metadata) confirms coherent-but-
+    blended neighborhoods. Explains why semantic similarity is graded, not
+    categorical — and frames the rankers' diversity/coverage numbers.
+
 - **Phase 5 — course graph (PPR) on a held-out cross-listing edge split.**
   - `src/courserec/recommenders/graph.py` — `GraphRecommender`: the one technique
     permitted to read `Cross-Listed Course(s)`. Ranks by personalized-PageRank

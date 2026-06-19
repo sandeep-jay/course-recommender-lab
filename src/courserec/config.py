@@ -25,6 +25,8 @@ RAW_DIR: Path = DATA_DIR / "raw"
 PROCESSED_DIR: Path = DATA_DIR / "processed"
 ARTIFACTS_DIR: Path = PROJECT_ROOT / "artifacts"
 RESULTS_DIR: Path = PROJECT_ROOT / "results"
+# Diagnostic figures (e.g. the Phase 6 clustering/UMAP map) live under results/.
+PLOTS_DIR: Path = RESULTS_DIR / "plots"
 
 # Canonical input and output for the data pipeline.
 RAW_CATALOG_CSV: Path = RAW_DIR / "courses-report_2026-06-02.csv"

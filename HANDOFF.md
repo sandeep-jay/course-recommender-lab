@@ -5,29 +5,32 @@
 
 ## Current state
 
-Phases 0–5 plus the judged free-text lens are green; `python scripts/run_eval.py`
-regenerates three leaderboards (full-truth cross-listing + judged free-text, 13
-rows each; the new held-out edge lens `leaderboard_heldout.md`, 15 rows) and
-`pytest` = **112 passed**, `ruff`/`black` clean. The Phase 5 graph
-(`recommenders/graph.py`, the one technique allowed to read `Cross-Listed
-Course(s)`) is scored only on a reproducible 30% held-out edge split and kept off
-the full-truth board; on held-out twins it recovers only ~23% (NDCG@10 0.131)
-versus content methods' ~0.89–0.91 (ADR-0006). The open thread is which Track-B
-rung comes next — Phase 6 clustering/UMAP vs. metadata fusion.
+Phases 0–6 plus the judged free-text lens are green; `python scripts/run_eval.py`
+regenerates the three leaderboards and `python scripts/run_clustering.py`
+regenerates the Phase 6 diagnostic (`results/cluster_report.{md,csv}` +
+`results/plots/embedding_map.png`), with `pytest` = **125 passed** and
+`ruff`/`black` clean. Phase 6 (`src/courserec/cluster.py`, a diagnostic that does
+**not** subclass `Recommender`) clusters the cached SBERT vectors with
+scikit-learn only (KMeans / Ward / HDBSCAN) and finds the embedding space is a
+smooth manifold — forced k=100 silhouette ~0.08–0.12, HDBSCAN noises 90% of the
+catalog, subject purity ~0.32 with no metadata (ADR-0007). The unbuilt Track-B
+rung now is metadata fusion (plan §2.5 / B.5); Track A/B techniques remaining are
+Phase 7 LLM enrichment and Phase 8 the Streamlit UI.
 
 ## Next task
 
-**Phase 6 — clustering + UMAP** (recommender_plan.md §2.7, §5): KMeans /
-agglomerative / HDBSCAN over the SBERT embeddings, a UMAP/t-SNE 2-D plot colored
-by subject saved to `results/plots/`. Diagnostic, not a ranker — feeds the
-coverage/diversity analysis. (Metadata fusion, plan §2.5 Track B.5, is the other
-unbuilt Track-B rung if a ranker is preferred over a diagnostic next.)
+**Phase 5/B.5 — metadata fusion** (recommender_plan.md §2.5, §5):
+`src/courserec/recommenders/metadata.py` — one/multi-hot of subject + department +
+level (and units) concatenated, **weighted**, with a text vector; sweep the
+weighting and add it to the leaderboard. A ranker (subclasses `Recommender`),
+unlike Phase 6. (Alternatively jump to Phase 7 LLM enrichment if a richer-feature
+rung is preferred over the metadata baseline.)
 
 ## Open decisions
 
 | Decision | Options | Owner | Due |
 |---|---|---|---|
-| Phase 6 clustering/UMAP vs. metadata fusion next | Build `cluster.py` (diagnostic + UMAP plot) / build `recommenders/metadata.py` (one/multi-hot subject+dept+level fused with a text vector, weight-swept) | Sandeep | next session |
+| Next rung: metadata fusion vs. Phase 7 LLM enrichment | Build `recommenders/metadata.py` (one/multi-hot subject+dept+level fused with a text vector, weight-swept; joins the leaderboard) / start Phase 7 `llm.py` (LLM-extracted tags + zero-shot reranker + "why this fits", degrades gracefully with no key) | Sandeep | next session |
 
 ## Blockers / waiting-on
 
@@ -35,8 +38,9 @@ None.
 
 ## First task for next session
 
-Decide Phase 6 clustering/UMAP vs. metadata fusion (see Open decisions). If
-Phase 6: scaffold `src/courserec/cluster.py` — cluster the SBERT embeddings
-(KMeans/agglomerative/HDBSCAN), fit UMAP, save a subject-colored 2-D plot to
-`results/plots/`, and surface cluster-coherence/coverage numbers; it is a
-diagnostic, so it does not subclass `Recommender` or join the leaderboard.
+Decide metadata fusion vs. Phase 7 LLM enrichment (see Open decisions). If
+metadata fusion: scaffold `src/courserec/recommenders/metadata.py` per the
+`/new-recommender` contract — fuse weighted one/multi-hot subject+dept+level with
+a text vector (e.g. TF-IDF or SBERT), sweep the fusion weight, persist the fitted
+artifact, add a contract test, and wire it into `scripts/run_eval.py` so it lands
+on the cross-listing + judged-text leaderboards.

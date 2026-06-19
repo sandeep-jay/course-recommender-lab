@@ -364,6 +364,28 @@ class _EmbeddingRecommender(Recommender):
         (self._artifact_dir / "meta.json").write_text(json.dumps(meta, indent=2))
         logger.info("%s: saved artifact to %s", self.name, self._artifact_dir)
 
+    # -- read access (for diagnostics) -----------------------------------------
+
+    @property
+    def embeddings(self) -> np.ndarray:
+        """The fitted, L2-normalized doc matrix (rows aligned with :attr:`course_ids`).
+
+        Exposed read-only so diagnostics (the Phase 6 clustering/UMAP map,
+        ``cluster.py``) can consume the cached SBERT vectors without re-encoding
+        or reaching into private state.
+
+        Raises:
+            RuntimeError: If accessed before :meth:`fit`.
+        """
+        if self._embeddings is None:
+            raise RuntimeError(f"{self.name}: fit before accessing embeddings")
+        return self._embeddings
+
+    @property
+    def course_ids(self) -> list[str]:
+        """The course ids in the row order of :attr:`embeddings` (a copy)."""
+        return list(self._course_ids)
+
     # -- recommendation --------------------------------------------------------
 
     def _search(self, qvec: np.ndarray, k: int, exclude: str | None) -> list[Rec]:

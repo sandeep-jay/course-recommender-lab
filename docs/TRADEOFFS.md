@@ -81,4 +81,15 @@ numbers see [RESULTS.md](RESULTS.md) and the
   text can't see (prereqs, curricular sequence); see
   [ADR-0006](adr/0006-graph-heldout.md).
 
+- **Clustering-specific (Phase 6).** Not a ranker and not in the table above — a
+  **diagnostic** over the SBERT vectors (`cluster.py`), so it has no leaderboard
+  row. Cost/complexity: zero new *required* deps (KMeans / Ward / HDBSCAN all from
+  scikit-learn; `matplotlib`+`umap-learn` are the optional `viz` extra, and the
+  map falls back from UMAP to t-SNE). Reuses the cached embeddings (no re-encode).
+  Finding: forced k=100 partitions score low silhouette (~0.08–0.12) and HDBSCAN
+  labels ~90% of courses noise — the space is a **smooth manifold, not tidy
+  clusters** — while subject purity ~0.32 (no metadata) shows coherent-but-blended
+  neighborhoods. This frames the diversity/coverage story (no hard cluster walls)
+  rather than adding a ranking; see [ADR-0007](adr/0007-clustering-diagnostic.md).
+
 _Metadata fusion and LLM rows land in later phases._
