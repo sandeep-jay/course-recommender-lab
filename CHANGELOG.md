@@ -33,11 +33,19 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
     Wired in: a blurb under each technique picker (Explore + both Compare columns); a
     `family` column, hover-for-definition column tooltips, and "How to read this
     leaderboard" / "Technique families" expanders on the Leaderboard.
-  - `app/streamlit_app.py` — three views: **Explore** (course or free-text → top-k
+  - Leaderboard view also renders the **graph technique's held-out-edge board**
+    (`results/leaderboard_heldout.csv`) as a clearly-labeled second table — "not
+    comparable to the table above" — so the graph results (ADR-0006) are visible in
+    the UI, not only on disk. The `graph(…)` rows sort to the bottom (~0.23 recall@10
+    vs content's ~1.0 on the same split): holding out a twin's edge isolates it in
+    the graph, while content methods read its near-identical text directly. A test
+    asserts every held-out name maps to a known `family` (so the column can't break).
+  - `app/streamlit_app.py` — four views: **Explore** (course or free-text → top-k
     with scores + an opt-in "why this fits" column), **Compare** (one query, two
-    techniques side by side), **Leaderboard** (`results/leaderboard.csv` as a
-    sortable table + the Phase 6 UMAP map). Catalog, each fitted technique, and the
-    explainer are `st.cache_resource`-cached, so interactions never re-fit; the
+    techniques side by side), **Leaderboard** (the main board + the graph's held-out
+    board + the static map), and **Map** (the live interactive projection). Catalog,
+    each fitted technique, the explainer, and the projection are
+    `st.cache_resource`-cached, so interactions never re-fit; the
     why-line reuses `RecommendationExplainer` (ADR-0011) and degrades to `—` when
     Ollama is down. New optional extra `ui` (`streamlit==1.41.1`);
     `pip install -e ".[ui,semantic]"`.

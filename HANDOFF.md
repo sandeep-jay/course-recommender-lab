@@ -5,15 +5,17 @@
 
 ## Current state
 
-Phases 0–8 are green: `pytest` = **204 passed**, `ruff`/`black` clean. **Phase 8
+Phases 0–8 are green: `pytest` = **205 passed**, `ruff`/`black` clean. **Phase 8
 (minimal Streamlit UI, plan §4) is complete** — every prior phase is now reachable
 from one `streamlit run app/streamlit_app.py`.
 
 Four views: **Explore** (course or free-text → top-k with scores + an opt-in "why
 this fits" column wired to the Phase 7c explainer), **Compare** (one query, two
-techniques side by side), **Leaderboard** (`results/leaderboard.csv` table + the
-static Phase 6 map), and **Map** (a live, interactive Altair projection where a
-selected seed + its top-k SBERT recommendations light up). The load-bearing choice
+techniques side by side), **Leaderboard** (the main `leaderboard.csv` table, the
+graph technique's **held-out-edge board** `leaderboard_heldout.csv` as a clearly-
+labeled "not comparable" second table, and the static Phase 6 map), and **Map** (a
+live, interactive Altair projection where a selected seed + its top-k SBERT
+recommendations light up). The load-bearing choice
 (ADR-0012) is a pattern of **import-safe, Streamlit-free, unit-tested modules feeding
 a thin view layer**: `app/registry.py` (technique factories + label helper),
 `app/glossary.py` (the **explanatory layer** — per-technique blurbs, per-family

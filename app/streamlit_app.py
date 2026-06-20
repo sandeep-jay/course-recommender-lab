@@ -58,6 +58,9 @@ from courserec.recommenders.embeddings import EmbeddingsUnavailable  # noqa: E40
 from courserec.recommenders.llm import RecommendationExplainer  # noqa: E402
 
 LEADERBOARD_CSV = RESULTS_DIR / "leaderboard.csv"
+# The graph technique reads cross-listing edges, so it is scored only on a held-out
+# split of them (leakage discipline) — a separate board, not comparable to the main.
+LEADERBOARD_HELDOUT_CSV = RESULTS_DIR / "leaderboard_heldout.csv"
 EMBEDDING_MAP_PNG = PLOTS_DIR / "embedding_map.png"
 _MAX_K = 20
 # The Map view projects this model's embeddings (the default rung) and overlays its
@@ -382,29 +385,47 @@ def _view_compare() -> None:
                 )
 
 
+def _render_board(board: pd.DataFrame) -> None:
+    """Render one leaderboard table with a `family` column and header tooltips."""
+    board = board.copy()
+    board.insert(1, "family", board["name"].map(family_label))
+    st.dataframe(
+        board,
+        use_container_width=True,
+        hide_index=True,
+        column_config=_column_config(board.columns),
+    )
+
+
 def _view_leaderboard() -> None:
-    """Leaderboard: the eval table (sortable) plus the UMAP map."""
+    """Leaderboard: the main eval table, the graph's held-out board, and the map."""
     st.subheader("Leaderboard")
     if LEADERBOARD_CSV.exists():
         board = pd.read_csv(LEADERBOARD_CSV)
-        board.insert(1, "family", board["name"].map(family_label))
         st.caption(
             f"{len(board)} technique×config rows from `{LEADERBOARD_CSV.name}`, "
             "sorted by NDCG@10 — click any column header to re-sort, hover a header "
             "for its definition. Regenerate with `python scripts/run_eval.py`."
         )
-        st.dataframe(
-            board,
-            use_container_width=True,
-            hide_index=True,
-            column_config=_column_config(board.columns),
-        )
+        _render_board(board)
         _leaderboard_glossary(board.columns)
     else:
         st.warning(
             "No leaderboard yet — run `python scripts/run_eval.py` to generate "
             f"`{LEADERBOARD_CSV}`."
         )
+
+    if LEADERBOARD_HELDOUT_CSV.exists():
+        st.markdown("#### Held-out edge split — the graph technique")
+        st.caption(
+            "**Not comparable to the table above.** The graph reads cross-listing "
+            "edges, so to avoid leakage it is scored only on a held-out split of those "
+            "edges, and the whole sweep is re-scored on that split for a fair "
+            "comparison. The `graph(…)` rows sort to the bottom: removing a twin's "
+            "edge isolates it in the graph, while content methods still read its "
+            "near-identical text directly (ADR-0006). Sorted by NDCG@10."
+        )
+        _render_board(pd.read_csv(LEADERBOARD_HELDOUT_CSV))
 
     st.markdown("#### Catalog map (UMAP)")
     if EMBEDDING_MAP_PNG.exists():

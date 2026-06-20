@@ -17,6 +17,7 @@ from app import glossary, registry
 from courserec.config import RESULTS_DIR
 
 LEADERBOARD_CSV = RESULTS_DIR / "leaderboard.csv"
+LEADERBOARD_HELDOUT_CSV = RESULTS_DIR / "leaderboard_heldout.csv"
 
 # The metric columns the Leaderboard view shows tooltips for (non-metric columns
 # name/family/config are handled separately).
@@ -81,5 +82,20 @@ def test_glossary_covers_the_actual_leaderboard() -> None:
     for col in board.columns:
         if col not in _NON_METRIC:
             assert glossary.metric_help(col), f"no glossary entry for column {col!r}"
+    for name in board["name"]:
+        assert glossary.family_of(name) != "other", f"unmapped technique {name!r}"
+
+
+@pytest.mark.skipif(
+    not LEADERBOARD_HELDOUT_CSV.exists(), reason="held-out leaderboard not generated"
+)
+def test_glossary_covers_the_heldout_leaderboard() -> None:
+    """The held-out board (graph rows incl.) maps every name to a known family.
+
+    The Leaderboard view renders this board with the same `family` column, so an
+    unmapped name — e.g. a new `graph(…)` config — would surface as "Other".
+    """
+    board = pd.read_csv(LEADERBOARD_HELDOUT_CSV)
+    assert (board["name"].str.startswith("graph")).any(), "expected graph rows"
     for name in board["name"]:
         assert glossary.family_of(name) != "other", f"unmapped technique {name!r}"
