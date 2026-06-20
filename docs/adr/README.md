@@ -16,3 +16,5 @@ One file per decision, format `NNNN-short-slug.md`. Write new ones with `/new-ad
 | [0010](0010-llm-reranker.md) | Zero-shot LLM reranker (retrieve → LLM reorder over full text) | Accepted | 2026-06-19 |
 | [0011](0011-llm-explainer.md) | "Why this fits" explainer — a UI helper, not a scored recommender | Accepted | 2026-06-20 |
 | [0012](0012-streamlit-ui.md) | Phase 8 minimal Streamlit UI — testable registry + thin view layer | Accepted | 2026-06-20 |
+| [0013](0013-deploy-warm-docker-image.md) | Deploy the UI as a warm, offline CPU Docker image | Accepted | 2026-06-20 |
+| [0014](0014-teaching-notebooks.md) | Teaching notebooks — reimplement-from-scratch over a tested library | Accepted | 2026-06-20 |

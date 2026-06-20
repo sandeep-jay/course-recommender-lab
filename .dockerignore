@@ -1,0 +1,46 @@
+# Build context for the Streamlit UI image (see Dockerfile + ADR-0013).
+# The image ships *warm*: the processed catalog, the leaderboard, and only the
+# artifacts that back the six UI rungs + the Map are copied in. Everything below
+# is excluded to keep the context (and image) small and the build deterministic.
+
+# --- never ship --------------------------------------------------------------
+.git/
+.gitignore
+.venv/
+venv/
+**/__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.DS_Store
+.claude/
+
+# --- not needed at runtime ---------------------------------------------------
+tests/
+scripts/
+docs/
+CHANGELOG.md
+HANDOFF.md
+*.ipynb
+
+# --- data: keep only the processed parquet the app loads ---------------------
+# (`data/*` is gitignored in the repo; here we drop the heavy raw CSV but KEEP
+#  data/processed/ and data/judged_queries.json, which the app reads.)
+data/raw/
+
+# --- artifacts: ship only what the UI actually loads -------------------------
+# Regenerable caches and rungs the UI never fits (full sweep stays in run_eval).
+artifacts/embcache/
+artifacts/llmcache/
+artifacts/llm_tags_qwen3_8b/
+artifacts/graph_meta_off_wx_1_0_wm_0_3_c_0_15/
+artifacts/graph_meta_on_wx_1_0_wm_0_3_c_0_15/
+artifacts/nmf_k_50_sw_on_ng_1_1_tw_1/
+artifacts/lda_k_50_sw_on_ng_1_1_tw_1/
+artifacts/tfidf_sw_on_ng_1_2_tw_1/
+artifacts/tfidf_sw_on_ng_1_1_tw_3/
+artifacts/bm25_sw_on_ng_1_1_tw_3_k1_1_5_b_0_75/
+artifacts/metadata_text_0_5_facets_subject_department_level_units/
+artifacts/metadata_text_0_9_facets_subject_department_level_units/

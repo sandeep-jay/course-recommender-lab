@@ -1,0 +1,16 @@
+# Streamlit server defaults shared by local runs and the Docker image (ADR-0013).
+# CMD flags (--server.port / --server.address) override these when set, e.g. when
+# a PaaS host injects $PORT.
+
+[server]
+headless = true
+address = "0.0.0.0"
+port = 8501
+# The catalog + artifacts are read-only at runtime; no file-watcher reloads.
+fileWatcherType = "none"
+
+[browser]
+gatherUsageStats = false
+
+[theme]
+base = "light"

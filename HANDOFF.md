@@ -5,36 +5,29 @@
 
 ## Current state
 
-The roadmap's planned phases **0–8 are all complete and green**: `pytest` = **205
-passed**, `ruff`/`black` clean. Phase 8 is the four-view Streamlit UI
-(`streamlit run app/streamlit_app.py`) over import-safe, unit-tested modules
-(`app/registry.py`, `app/glossary.py`, `app/projection.py`); SBERT MiniLM is still
-the top rung and the UI default. No roadmap work is pending — the one open thread is
-*what to do next* (deploy vs. wind down), an owner decision below.
+Roadmap phases **0–8 complete and green**: `pytest` = **211 passed**, `ruff`/`black`
+clean; the Phase 8 UI also ships as a warm offline Docker image and has ten
+step-by-step teaching notebooks under `notebooks/` (all execute under
+`pytest --nbmake`). The only open thread is purely optional — where (if anywhere) to
+host the Docker image; no roadmap work pends.
 
 ## Next task
 
-Decide the open-decisions row, then start it. If deploying the UI: add a `Dockerfile`
-(or a Streamlit Community Cloud / HF Spaces config) that runs
-`streamlit run app/streamlit_app.py` with `pip install -e ".[ui,semantic]"` — the
-install tiers + models table in [docs/RUNBOOK.md](docs/RUNBOOK.md) are the spec.
-Note: `artifacts/` is gitignored, so a fresh host starts cold (encode ~11k SBERT
-vectors + t-SNE projection on first load) — commit a warm artifact or accept ~30 s.
+Optional. To publish the UI: push the `course-rec-ui` image to a registry and deploy
+to the chosen host (it's already `$PORT`-aware/headless — no code change). Otherwise
+wind down to docs polish. No required task remains.
 
 ## Open decisions
 
 | Decision | Options | Owner | Due |
 |---|---|---|---|
-| What's next now Phases 0–8 are complete | Deploy the UI (clickable portfolio piece — recommended) / reranker follow-up (TF-IDF base or qwen3:32b — low ROI, rung closed) / call the roadmap done and polish docs | Sandeep | next session |
+| Where to host the Docker image | Cloud Run / HF Spaces (Docker) / leave as a local `docker run` portfolio artifact | Sandeep | when convenient |
 
 ## Blockers / waiting-on
 
-None. The repo runs end-to-end offline; Ollama is only needed at query time for a
-*fresh* tag/rerank/explanation (caches degrade gracefully or serve warm). The UI
-needs `pip install -e ".[ui,semantic]"` (add `viz` for the Map's faster UMAP).
+None.
 
 ## First task for next session
 
-Decide the open-decisions row; if undecided, scaffold a `Dockerfile` that serves
-`app/streamlit_app.py` (per [docs/RUNBOOK.md](docs/RUNBOOK.md)) to make the UI
-deployable.
+Decide the host row above; if undecided, polish `README.md`/`docs/RESULTS.md` for
+portfolio reading and link the `notebooks/` walkthroughs from the README lead.

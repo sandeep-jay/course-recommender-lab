@@ -47,17 +47,42 @@ viz = [
 ui = [
     "streamlit==1.41.1",
 ]
+# Notebooks — the step-by-step teaching breakdowns under notebooks/ (ADR-0014).
+# Each notebook reimplements a technique from primitives for teaching, reusing the
+# library only for plumbing (data load + the eval harness). jupytext keeps the
+# `.py` percent script the versioned source (clean diffs); the `.ipynb` is
+# generated and gitignored; nbmake executes it so a notebook can't silently rot.
+# Pair with `semantic` for the embedding/rerank/LLM notebooks:
+# `pip install -e ".[notebooks,semantic]"`.
+notebooks = [
+    "jupytext==1.19.3",
+    "nbmake==1.5.5",
+    "nbclient==0.11.0",
+    "nbconvert==7.17.1",
+    "ipykernel==7.3.0",
+    "matplotlib==3.11.0",
+]
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.jupytext]
+# The `.py` percent scripts under notebooks/ are the versioned source; strip the
+# noisy notebook/cell metadata so generated .ipynb round-trips stay diff-clean.
+notebook_metadata_filter = "-all"
+cell_metadata_filter = "-all"
+
 [tool.black]
 line-length = 88
 target-version = ["py311"]
+# The numbered notebook scripts are jupytext teaching breakdowns, not library code
+# (mid-file imports, display expressions); nbtools.py *is* linted/formatted.
+extend-exclude = "notebooks/[0-9].*\\.py$"
 
 [tool.ruff]
 line-length = 88
 target-version = "py311"
+extend-exclude = ["notebooks/[0-9]*.py"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "D"]

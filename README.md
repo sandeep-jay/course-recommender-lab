@@ -30,9 +30,29 @@ python scripts/enrich_catalog.py # Phase 7: LLM-tag the eval subset via Ollama (
 python scripts/run_eval.py       # fit + score all techniques -> results/leaderboard.{md,csv}
 python scripts/run_clustering.py # Phase 6 diagnostic -> results/cluster_report.md + plots/
 python scripts/explain_recs.py --seed "COMPSCI 189"  # Phase 7c: "why this fits" lines via Ollama
-streamlit run app/streamlit_app.py  # Phase 8 UI: Explore / Compare / Leaderboard
+streamlit run app/streamlit_app.py  # Phase 8 UI: Explore / Compare / Leaderboard / Map
 pytest                           # tests
 ruff check . && black .          # lint / format
+```
+
+Or run the UI as a warm, offline Docker image (catalog + artifacts + MiniLM baked in,
+no first-load encode, CPU-only — [ADR-0013](docs/adr/0013-deploy-warm-docker-image.md)):
+
+```bash
+docker build -t course-rec-ui . && docker run --rm -p 8501:8501 course-rec-ui  # http://localhost:8501
+```
+
+The build `COPY`s the (gitignored) processed catalog + artifacts, so build from a repo
+that has already run the pipeline + eval. See the RUNBOOK's **Deploy** section.
+
+**Learning the techniques?** [`notebooks/`](notebooks/) has ten step-by-step
+breakdowns ([ADR-0014](docs/adr/0014-teaching-notebooks.md)) — one per technique
+family, each building the method from primitives on the real catalog and running its
+eval live, plus a data/eval foundation (`00`) and a cross-technique synthesis (`09`):
+
+```bash
+pip install -e ".[notebooks,semantic]"
+jupytext --to ipynb notebooks/01_lexical.py && jupyter lab notebooks/01_lexical.ipynb
 ```
 
 The semantic rung needs `pip install -e ".[semantic]"`; the Phase 6 map needs

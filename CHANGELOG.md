@@ -6,6 +6,51 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 ## [Unreleased]
 
 ### Added
+- **Teaching notebooks — ten step-by-step breakdowns under `notebooks/` (ADR-0014).**
+  The teaching companion to the library: one notebook per technique family, each
+  *reimplementing the method from primitives on the real catalog* (reusing the
+  library only for plumbing — data load + the eval harness) and **running its own
+  eval live**, bracketed by a data/eval foundation and a cross-technique synthesis.
+  - `00_data_and_eval` (the `"-"` null, leakage, the 3 lenses, the metrics —
+    definitions; first live numbers in `01`), `01_lexical` (TF-IDF + BM25 + the
+    preprocessing sweep), `02_topics` (LSA via SVD; NMF/LDA), `03_embeddings` (SBERT
+    + cosine/FAISS retrieval by hand; the synonym test lexical fails), `04_rerank`
+    (cross-encoder + MMR from scratch), `05_metadata` (one-hot ⊕ text fusion —
+    honest negative), `06_graph` (adjacency + power-iterated PPR + the held-out
+    eval), `07_clustering` (KMeans/HDBSCAN + the 2-D map), `08_llm` (tags / rerank /
+    explainer via local Ollama, degrading gracefully), `09_leaderboard` (the
+    canonical board + bootstrap-CI synthesis).
+  - **Lean teaching style:** explain each stage → run it on the real catalog →
+    important transformations in their own cells → cross-check the from-scratch
+    ranking against the library → live eval (slow rungs sample seeds). No toy
+    corpora or exercises.
+  - **Tooling:** new `notebooks` extra (jupytext, nbmake, ipykernel, matplotlib).
+    The **`.py` percent scripts are the versioned source** (clean diffs); the
+    `.ipynb` are generated and gitignored; **nbmake** executes them (opt-in
+    `--nbmake`, kept out of the default suite). `notebooks/nbtools.py` holds the
+    shared display helpers (`recs_to_frame`, `top_k_overlap`, `plot_metric_ci`) —
+    ordinary linted, unit-tested code (`tests/test_nbtools.py`, +6 tests → 211).
+    Numbered notebooks are excluded from `ruff`/`black`; `notebooks/README.md`
+    indexes them and the RUNBOOK gains a **Notebooks (4b)** section.
+- **Deploy — warm, offline CPU Docker image for the UI (ADR-0013).** A `Dockerfile`
+  packages the Phase 8 Streamlit UI so a fresh host starts **warm** (no first-load
+  encode) and **offline** (no runtime network):
+  - Bakes in the processed catalog, `results/`, the six UI rungs' artifacts + the Map
+    projection, and the **default MiniLM weights** (pre-pulled at build). So
+    course-to-course, Compare, Map, the Leaderboard, and **free-text queries** all
+    work with no network. MPNet's weights and the Ollama why-line stay on-demand
+    (graceful degradation, unchanged).
+  - Forces the **CPU torch wheel** (installs `torch==2.12.0` from the PyTorch CPU
+    index before `pip install -e ".[ui,semantic]"`), so the multi-GB CUDA default is
+    never pulled. CPU-only image.
+  - `$PORT`-aware `CMD` + headless `.streamlit/config.toml`, runs as a non-root
+    `appuser`, `/_stcore/health` HEALTHCHECK — so Cloud Run / HF Spaces (Docker) work
+    unchanged. `.dockerignore` ships only the runtime subset (~150 MB of artifacts;
+    raw CSV, regenerable caches, and unused rungs excluded).
+  - Honest caveat: the build `COPY`s the gitignored `data/processed/` + `artifacts/`,
+    so it must run from a **warm repo** (pipeline + eval already run) — not a fresh
+    clone. Documented in the RUNBOOK's new **Deploy (4a)** section + troubleshooting
+    rows; `README.md` gains a one-command build/run.
 - **`docs/RUNBOOK.md` — operational runbook.** End-to-end how-to-run for the whole
   repo: install tiers (`dev`/`semantic`/`viz`/`ui` extras + recommended combos), the
   data pipeline, every script with its exact flags and outputs (`run_eval`,
