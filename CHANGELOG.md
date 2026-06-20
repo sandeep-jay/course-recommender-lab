@@ -5,6 +5,35 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ## [Unreleased]
 
+### Added
+- **Phase 7 / B.8b — zero-shot LLM reranker.**
+  - `src/courserec/recommenders/llm.py` — `LLMRerankRecommender`: retrieves the
+    top-N (default 20) from a base ranker (MiniLM `SbertRecommender` by default,
+    any `Recommender` injectable, seed already excluded), then reorders those
+    candidates with **one** deterministic Ollama call over their **full** text (no
+    distillation — the lesson of ADR-0009). The model returns an integer
+    permutation under a JSON-schema `format`; `_reconcile` maps it back to ids,
+    drops out-of-range/duplicate picks, and appends any omitted candidate in base
+    order, so the output ranks every candidate exactly once however the model
+    behaves. Scores are rank-based (`len - position`), strictly descending.
+  - `OllamaClient.rank_candidates` — numbered-listing prompt → validated integer
+    ranking; reuses the stdlib-`urllib` client (still **zero new dependencies**).
+  - `_RerankCache` — reranks cache to `artifacts/llmcache/<model>/reranks.json`
+    keyed `sha1(model+query+candidate-ids)`; one LLM call per (query,
+    candidate-set), ever.
+  - **Graceful degradation:** when Ollama is down the rung falls back to the base
+    order; `fit` raises `LLMUnavailable` (skip+flag) only when down *and* the
+    rerank cache is cold (it would be a useless base-order duplicate).
+  - `scripts/run_eval.py` — `LLMRerankRecommender()` added to the sweep (19
+    techniques total) under the existing `LLMUnavailable` graceful-skip `except`.
+  - `tests/test_llm.py` — 12 reranker contract tests via `FakeBase` +
+    `FakeRerankClient` (no daemon): reorder, seed-exclusion, sort/cap, cache reuse,
+    cold-offline skip, warm-offline cache, uncached-offline base fallback,
+    malformed-output reconcile, by-text, empty-query, unknown-seed, bad-config.
+    Suite now **160 passed**. Live smoke against qwen3:8b confirms the
+    prompt/schema/parse round-trip.
+  - `docs/adr/0010-llm-reranker.md` — rerank-prompt + caching + fallback design.
+
 ### Changed
 - **Phase 7 — full-catalog enrichment overturns the LLM tag rung's provisional
   win.** Ran `scripts/enrich_catalog.py --all` (qwen3:8b, 8,535 fresh generations,

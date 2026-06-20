@@ -72,6 +72,7 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 
 from courserec.config import ARTIFACTS_DIR, DEFAULT_LLM_MODEL, OLLAMA_HOST, RANDOM_SEED
 from courserec.interfaces import Rec, Recommender
+from courserec.recommenders.embeddings import SbertRecommender
 
 logger = logging.getLogger(__name__)
 
@@ -102,6 +103,24 @@ _EXTRACT_INSTRUCTION = (
     "system. topics = the subjects it covers; skills = what a student can do "
     "after; level = its difficulty band; prereqs_mentioned = any prior knowledge "
     "the description names. Be concise and return ONLY the JSON."
+)
+
+#: JSON schema for the zero-shot reranker (§2.8b): the model returns an ordered
+#: list of candidate numbers (1-based, referencing the numbered prompt listing),
+#: validated server-side so the reply is a permutation, not prose to parse.
+_RERANK_SCHEMA: dict = {
+    "type": "object",
+    "properties": {
+        "ranking": {"type": "array", "items": {"type": "integer"}},
+    },
+    "required": ["ranking"],
+}
+
+_RERANK_INSTRUCTION = (
+    "You are ranking university courses by how well each matches a query, for a "
+    "recommender system. Read the query, then the numbered candidate courses. "
+    "Return the candidate numbers ordered from most to least relevant to the "
+    "query, including every number exactly once. Return ONLY the JSON."
 )
 
 
@@ -256,6 +275,43 @@ class OllamaClient:
         except (urllib.error.URLError, OSError, ValueError, KeyError) as exc:
             raise LLMUnavailable(f"Ollama generation failed: {exc}") from exc
 
+    def rank_candidates(self, query: str, candidate_texts: list[str]) -> list[int]:
+        """Rank candidate courses for a query, returning their 0-based positions.
+
+        The candidates are presented to the model as a numbered listing; it
+        returns those numbers reordered most- to least-relevant. The returned
+        indices are *as the model gave them* — possibly partial, duplicated, or
+        out of range; the caller reconciles them against the candidate set.
+
+        Args:
+            query: The seed course's text (item-to-item mode) or a free-text query.
+            candidate_texts: The retrieved candidates' full texts, in base order.
+
+        Returns:
+            The model's ranking as 0-based indices into ``candidate_texts``.
+
+        Raises:
+            LLMUnavailable: If the request fails or the reply is not valid JSON.
+        """
+        listing = "\n".join(
+            f"[{i + 1}] {text}" for i, text in enumerate(candidate_texts)
+        )
+        prompt = f"{_RERANK_INSTRUCTION}\n\nQuery: {query}\n\nCandidates:\n{listing}"
+        payload = {
+            "model": self.model,
+            "prompt": prompt,
+            "format": _RERANK_SCHEMA,
+            "stream": False,
+            "think": False,
+            "options": {"temperature": 0, "seed": RANDOM_SEED},
+        }
+        try:
+            reply = self._post("/api/generate", payload)
+            ranking = json.loads(reply["response"])["ranking"]
+            return [int(n) - 1 for n in ranking]
+        except (urllib.error.URLError, OSError, ValueError, KeyError, TypeError) as exc:
+            raise LLMUnavailable(f"Ollama rerank failed: {exc}") from exc
+
 
 # --------------------------------------------------------------------------- #
 # Tag cache (content-addressed, shared across runs)                           #
@@ -294,6 +350,54 @@ class _TagCache:
     def put(self, normalized_text: str, tags: CourseTags) -> None:
         """Insert tags for a text into the in-memory store (call :meth:`save`)."""
         self._store[self.key(normalized_text)] = tags.to_dict()
+
+    def save(self) -> None:
+        """Persist the store to disk (atomic enough for a single local writer)."""
+        self._path.parent.mkdir(parents=True, exist_ok=True)
+        self._path.write_text(json.dumps(self._store))
+
+    def __len__(self) -> int:
+        return len(self._store)
+
+
+class _RerankCache:
+    """LLM rerank cache keyed by ``sha1(model + query + candidate-ids)``.
+
+    The reranker's only persisted output: one ``reranks.json`` mapping each
+    (query, candidate-set) to the model's ranked id order, shared across runs so a
+    given rerank is generated at most once. The candidate ids are part of the key
+    (in retrieval order), so any change to what the base retrieves invalidates the
+    entry rather than silently reusing a stale order.
+    """
+
+    def __init__(self, model_key: str) -> None:
+        """Open (or initialize) the rerank cache for a given model identity."""
+        self._model_key = model_key
+        self._path = _LLMCACHE_DIR / _slug(model_key) / "reranks.json"
+        self._store: dict[str, list[str]] = {}
+        if self._path.exists():
+            self._store = json.loads(self._path.read_text())
+            logger.info(
+                "rerankcache[%s]: loaded %d entries", model_key, len(self._store)
+            )
+
+    def key(self, query: str, candidate_ids: list[str]) -> str:
+        """Hash ``model_key + normalized query + candidate ids`` to the cache key."""
+        h = hashlib.sha1()
+        h.update(self._model_key.encode())
+        h.update(b"\x00")
+        h.update(_normalize_text(query).encode())
+        h.update(b"\x00")
+        h.update("\x00".join(candidate_ids).encode())
+        return h.hexdigest()
+
+    def get(self, key: str) -> list[str] | None:
+        """Return a cached ranked id list for a key, or ``None`` on a miss."""
+        return self._store.get(key)
+
+    def put(self, key: str, ranked_ids: list[str]) -> None:
+        """Insert a ranked id list for a key (call :meth:`save` to persist)."""
+        self._store[key] = ranked_ids
 
     def save(self) -> None:
         """Persist the store to disk (atomic enough for a single local writer)."""
@@ -586,3 +690,211 @@ class LLMTagRecommender(Recommender):
         cache.put(normalized, tags)
         cache.save()
         return tags.profile_text() or normalized
+
+
+# --------------------------------------------------------------------------- #
+# Zero-shot LLM reranker (Track B.8b)                                          #
+# --------------------------------------------------------------------------- #
+
+
+class LLMRerankRecommender(Recommender):
+    """Retrieve top-N with a base ranker, then reorder them with one LLM call.
+
+    Where :class:`LLMTagRecommender` *distills* each course to tags and ranks in
+    that lossy space, this rung keeps a strong first-stage ranker (SBERT by
+    default) and uses the LLM only to **reorder** its top-N candidates, reading
+    each candidate's *full* text — no distillation, so no signal is thrown away
+    before the model sees it. It is the cross-encoder rerank idea (``rerank.py``)
+    with a zero-shot LLM in place of a trained cross-encoder (plan §2.8b).
+
+    Why this and not the tag rung
+    -----------------------------
+    The tag rung settled as not competitive: collapsing a description to ~6–12
+    tags loses more than the LLM's normalization adds (ADR-0009). A reranker
+    sidesteps that — it never compresses the catalog, only judges a handful of
+    already-relevant candidates against the query in one shot.
+
+    Determinism, caching, graceful degradation
+    ------------------------------------------
+    One deterministic Ollama call (``temperature=0``, ``seed=RANDOM_SEED``) per
+    (query, candidate-set), cached by ``sha1(model + query + candidate-ids)`` in
+    ``artifacts/llmcache/<model>/reranks.json``. When Ollama is unreachable the
+    rung **falls back to the base order** rather than failing — so the worst case
+    is "no better than the base," never a crashed suite (plan §1). ``fit`` skips
+    (raises :class:`LLMUnavailable`) only in the cold case — Ollama down *and* no
+    rerank cached — where every query would reproduce the base and the row would
+    be a useless duplicate.
+    """
+
+    def __init__(
+        self,
+        *,
+        base: Recommender | None = None,
+        model: str = DEFAULT_LLM_MODEL,
+        host: str = OLLAMA_HOST,
+        retrieve_n: int = 20,
+        candidate_chars: int = 1000,
+        client: OllamaClient | None = None,
+    ) -> None:
+        """Configure the retrieve-then-rerank pipeline.
+
+        Args:
+            base: First-stage retriever (any fitted-capable :class:`Recommender`).
+                Defaults to a MiniLM :class:`SbertRecommender`.
+            model: Ollama model tag used to rerank (and to key the cache).
+            host: Ollama base URL (only used for live reranking).
+            retrieve_n: How many candidates the base retrieves before reranking.
+            candidate_chars: Truncate each candidate's text to this many chars in
+                the prompt, bounding prompt size on long descriptions.
+            client: Injected client (defaults to a new :class:`OllamaClient`).
+
+        Raises:
+            ValueError: If ``retrieve_n`` or ``candidate_chars`` is not positive.
+        """
+        if retrieve_n < 1:
+            raise ValueError("retrieve_n must be >= 1")
+        if candidate_chars < 1:
+            raise ValueError("candidate_chars must be >= 1")
+        self._base = base if base is not None else SbertRecommender()
+        self._client = client or OllamaClient(model=model, host=host)
+        self._text_by_id: dict[str, str] = {}
+        self._cache: _RerankCache | None = None
+        self.config = {
+            "base": self._base.name,
+            "model": model,
+            "retrieve_n": retrieve_n,
+            "candidate_chars": candidate_chars,
+        }
+        self.name = (
+            f"llm_rerank({_slug(model)},base={_slug(self._base.name)},n={retrieve_n})"
+        )
+
+    # -- fit ------------------------------------------------------------------
+
+    def fit(self, courses: pd.DataFrame) -> None:
+        """Fit the base retriever and capture candidate texts for reranking.
+
+        The base persists/reloads its own artifact; this stage adds only the
+        per-query rerank cache (filled lazily at query time). No precomputed
+        rerank artifact exists — reranking is query-dependent.
+
+        Args:
+            courses: Processed catalog (one row per course), indexed by
+                ``course_id``.
+
+        Raises:
+            LLMUnavailable: If Ollama is unreachable *and* no rerank is cached —
+                the rung would reproduce the base order for every query and be a
+                useless duplicate, so it skips with a flag instead (plan §1).
+        """
+        self._cache = _RerankCache(f"ollama:{self.config['model']}")
+        if not self._client.available() and len(self._cache) == 0:
+            raise LLMUnavailable(
+                f"{self.name}: Ollama unreachable and no rerank cached — start "
+                "`ollama serve` so the reranker can reorder candidates"
+            )
+        self._base.fit(courses)
+        text = courses["text"].fillna("")
+        self._text_by_id = {
+            cid: _normalize_text(t) or _normalize_text(cid)
+            for cid, t in zip(courses.index, text, strict=True)
+        }
+
+    # -- reranking core -------------------------------------------------------
+
+    def _reconcile(self, order: list[str], candidates: list[str]) -> list[str]:
+        """Force ``order`` to a full permutation of ``candidates``.
+
+        Drops ids the model invented or duplicated and appends any candidate it
+        omitted, in base order — so the result always ranks every candidate
+        exactly once, however the model (mis)behaved.
+        """
+        candset = set(candidates)
+        seen: set[str] = set()
+        reconciled = [
+            c for c in order if c in candset and not (c in seen or seen.add(c))
+        ]
+        reconciled.extend(c for c in candidates if c not in seen)
+        return reconciled
+
+    def _live_order(self, query: str, candidates: list[str]) -> list[str]:
+        """Ask the LLM to reorder ``candidates``; fall back to base order on failure."""
+        texts = [
+            self._text_by_id[c][: self.config["candidate_chars"]] for c in candidates
+        ]
+        try:
+            idx = self._client.rank_candidates(query, texts)
+        except LLMUnavailable:
+            logger.warning("%s: rerank failed — using base order", self.name)
+            return list(candidates)
+        order = [candidates[i] for i in idx if 0 <= i < len(candidates)]
+        return self._reconcile(order, candidates)
+
+    def _ranked_order(self, query: str, candidates: list[str]) -> list[str]:
+        """Return the reranked candidate ids: cache, else live LLM, else base order."""
+        assert self._cache is not None  # set in fit()
+        key = self._cache.key(query, candidates)
+        cached = self._cache.get(key)
+        if cached is not None:
+            return self._reconcile(cached, candidates)
+        if not self._client.available():
+            return list(candidates)
+        order = self._live_order(query, candidates)
+        self._cache.put(key, order)
+        self._cache.save()
+        return order
+
+    def _rerank(self, query: str, candidates: list[str], k: int) -> list[Rec]:
+        """Rerank candidates for a query and return the top-k as rank-scored recs.
+
+        Scores are rank-based (``len - position``), strictly descending, so the
+        list honors the interface contract regardless of the base's own scores.
+        """
+        if not candidates:
+            return []
+        order = self._ranked_order(query, candidates)[:k]
+        n = len(order)
+        return [Rec(cid, float(n - i)) for i, cid in enumerate(order)]
+
+    # -- recommendation -------------------------------------------------------
+
+    def recommend_similar(self, course_id: str, k: int = 10) -> list[Rec]:
+        """Recommend courses similar to a seed: base retrieval, LLM-reranked.
+
+        The base retrieves ``retrieve_n`` candidates (seed already excluded); the
+        LLM reorders them against the seed's own text.
+
+        Args:
+            course_id: Seed course id; must exist in the fitted catalog.
+            k: Maximum number of recommendations.
+
+        Returns:
+            Up to ``k`` :class:`Rec`, sorted by descending score, never including
+            ``course_id``.
+
+        Raises:
+            KeyError: If ``course_id`` is not in the fitted catalog.
+        """
+        if course_id not in self._text_by_id:
+            raise KeyError(f"unknown course_id: {course_id!r}")
+        retrieved = self._base.recommend_similar(course_id, k=self.config["retrieve_n"])
+        candidates = [r.course_id for r in retrieved]
+        return self._rerank(self._text_by_id[course_id], candidates, k)
+
+    def recommend_by_text(self, query: str, k: int = 10) -> list[Rec]:
+        """Recommend courses for a free-text query: base retrieval, LLM-reranked.
+
+        Args:
+            query: A natural-language query.
+            k: Maximum number of recommendations.
+
+        Returns:
+            Up to ``k`` :class:`Rec`, sorted by descending score. Empty if the
+            query normalizes to nothing.
+        """
+        normalized = _normalize_text(query)
+        if not normalized:
+            return []
+        retrieved = self._base.recommend_by_text(query, k=self.config["retrieve_n"])
+        candidates = [r.course_id for r in retrieved]
+        return self._rerank(normalized, candidates, k)

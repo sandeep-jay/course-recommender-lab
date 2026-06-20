@@ -5,42 +5,47 @@
 
 ## Current state
 
-Phases 0–7a are green with `pytest` = **148 passed**, `ruff`/`black` clean. The
-catalog is now **100% LLM-enriched** (qwen3:8b tags cached for 10,900/11,073
-courses) and the de-confounded result is settled: with the full catalog enriched
-the LLM tag rung (`recommenders/llm.py`) is **not competitive** — it ties lexical
-on cross-listing (0.957) and falls *below* plain TF-IDF on free text (0.404 vs
-0.461); the earlier subset-run "win" (0.960/0.585) was a target/distractor
-vocabulary-separation artifact, and distilling a description to ~6–12 tags loses
-more signal than the LLM's normalization adds (ADR-0009, RESULTS Phase 7). SBERT
-MiniLM still tops both ranking lenses. The 100% tag cache is reusable by the
-deferred LLM reranker + "why this fits" UI.
+Phases 0–7b are green with `pytest` = **160 passed**, `ruff`/`black` clean. The
+Phase 7 **zero-shot LLM reranker** (`LLMRerankRecommender`, `recommenders/llm.py`)
+is now built, tested, and wired into the sweep (19 techniques): it retrieves top-N
+(default 20) from a MiniLM SBERT base, then reorders those candidates with one
+deterministic Ollama call over their **full** text (no distillation — the lesson
+of ADR-0009), reusing `OllamaClient` (new `rank_candidates`). The model returns an
+integer permutation under a JSON-schema `format`; `_reconcile` always yields a full
+permutation however the model behaves. Reranks cache to `reranks.json` keyed
+`sha1(model+query+candidate-ids)`; offline it falls back to the base order, and
+`fit` skips (`LLMUnavailable`) only when Ollama is down *and* the cache is cold.
+Design in **ADR-0010**. The mechanism is **live-verified** against qwen3:8b
+(sensible toy reranking), but the **leaderboard delta is not yet measured** — the
+full eval was not run this session (it is one LLM call per cross-listing seed +
+judged query, ~hour-long on a cold cache).
+
+The prior tag rung (`LLMTagRecommender`) stays settled as not competitive
+(ADR-0009); SBERT MiniLM still tops both ranking lenses.
 
 ## Next task
 
-Build the Phase 7 **zero-shot LLM reranker** (`recommenders/llm.py`, plan §2.8b):
-a `LLMRerankRecommender` that retrieves top-N (SBERT or TF-IDF), then reorders the
-candidates with a single deterministic Ollama call over their **full text** (not
-tags), reusing `OllamaClient`; cache the rerank by `sha1(model+query+candidate-ids)`,
-degrade gracefully when Ollama is down (fall back to the base order), contract-test
-with the `FakeClient` pattern, wire into `run_eval`, and write an ADR for the
-rerank-prompt + caching design.
+**Measure the reranker.** Run `python scripts/run_eval.py` with `ollama serve` up
++ qwen3:8b (warms `reranks.json`; the SBERT artifact is already cached). Read the
+delta vs the `sbert(all_minilm...)` base on both lenses — the reranker's ceiling is
+the base's recall@20, so it can only reorder what SBERT retrieves. Record the
+verdict in ADR-0010 (replace its "unmeasured at write time" caveat) and on the
+leaderboards. A second cold run should be free (cache warm) — confirm reproducibility.
 
 ## Open decisions
 
 | Decision | Options | Owner | Due |
 |---|---|---|---|
-| Next rung after the LLM reranker | "Why this fits" explanations + LLM-as-judge (finish Phase 7 b/c) / start Phase 8 Streamlit UI / try a bigger model (qwen3:32b) on the reranker | Sandeep | next session |
+| After measuring the reranker | "Why this fits" explanations + LLM-as-judge (finish Phase 7 b/c) / start Phase 8 Streamlit UI / tune the reranker (`retrieve_n`, `candidate_chars`, prompt, qwen3:32b) | Sandeep | next session |
 
 ## Blockers / waiting-on
 
-None. (The LLM reranker needs `ollama serve` up + `qwen3:8b` at query time; the
-tag cache is already 100% warm and the rest of the suite runs fully offline.)
+None. (The reranker eval needs `ollama serve` up + `qwen3:8b` at query time; once
+`reranks.json` is warm the suite reruns fully offline.)
 
 ## First task for next session
 
-Scaffold `LLMRerankRecommender` in `src/courserec/recommenders/llm.py`: retrieve
-top-N with the MiniLM SBERT base, reorder via one deterministic Ollama call over
-the candidates' full text, cache by `sha1(model+query+candidate-ids)`, fall back to
-the base order when Ollama is down, add `FakeClient` contract tests, and wire it
-into `scripts/run_eval.py`.
+Run `python scripts/run_eval.py` (Ollama up, qwen3:8b) to fill `reranks.json` and
+get the reranker's NDCG@10 on the cross-listing + judged free-text lenses; compare
+against the SBERT base, then write the verdict into ADR-0010 and confirm a warm
+rerun is deterministic.

@@ -34,7 +34,11 @@ from courserec.recommenders.embeddings import (
 )
 from courserec.recommenders.graph import GraphRecommender
 from courserec.recommenders.lexical import BM25Recommender, TfidfRecommender
-from courserec.recommenders.llm import LLMTagRecommender, LLMUnavailable
+from courserec.recommenders.llm import (
+    LLMRerankRecommender,
+    LLMTagRecommender,
+    LLMUnavailable,
+)
 from courserec.recommenders.metadata import MetadataRecommender
 from courserec.recommenders.rerank import RerankRecommender
 from courserec.recommenders.topics import (
@@ -94,6 +98,12 @@ def build_recommenders() -> list[Recommender]:
         # cache only — run `python scripts/enrich_catalog.py` (Ollama up) first.
         # Skips + flags when no tags are cached and Ollama is unreachable.
         LLMTagRecommender(),
+        # Phase 7 / Track B.8b — zero-shot LLM reranker. Retrieves top-N with the
+        # MiniLM SBERT base, then reorders the candidates with one deterministic
+        # Ollama call over their *full* text (no distillation). Reranks cache by
+        # sha1(model+query+candidate-ids); falls back to the base order when Ollama
+        # is down, and skips + flags only when down with a cold cache.
+        LLMRerankRecommender(),
     ]
 
 

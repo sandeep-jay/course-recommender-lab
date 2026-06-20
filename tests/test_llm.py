@@ -13,10 +13,11 @@ from __future__ import annotations
 import pandas as pd
 import pytest
 
-from courserec.interfaces import Rec
+from courserec.interfaces import Rec, Recommender
 from courserec.recommenders import llm as llm_mod
 from courserec.recommenders.llm import (
     CourseTags,
+    LLMRerankRecommender,
     LLMTagRecommender,
     LLMUnavailable,
     enrich_courses,
@@ -178,3 +179,175 @@ def test_artifact_cache_roundtrips(mini_catalog: pd.DataFrame) -> None:
     a = rec.recommend_similar("AEROENG C124", k=3)
     b = reloaded.recommend_similar("AEROENG C124", k=3)
     assert [r.course_id for r in a] == [r.course_id for r in b]
+
+
+# --------------------------------------------------------------------------- #
+# Zero-shot LLM reranker (Track B.8b)                                          #
+# --------------------------------------------------------------------------- #
+
+
+class FakeBase(Recommender):
+    """A deterministic, no-network first-stage retriever for reranker tests.
+
+    Returns a fixed candidate list (seed excluded) in a known order, so a test can
+    assert the *reranker* changed it. ``fit`` persists nothing.
+    """
+
+    def __init__(self, candidates: list[str]) -> None:
+        """Configure the fixed candidate list this base always retrieves."""
+        self.name = "fakebase"
+        self.config = {}
+        self._candidates = candidates
+
+    def fit(self, courses: pd.DataFrame) -> None:  # noqa: D102
+        self._ids = list(courses.index)
+
+    def recommend_similar(self, course_id: str, k: int = 10) -> list[Rec]:  # noqa: D102
+        cands = [c for c in self._candidates if c != course_id][:k]
+        return [Rec(c, float(len(cands) - i)) for i, c in enumerate(cands)]
+
+    def recommend_by_text(self, query: str, k: int = 10) -> list[Rec]:  # noqa: D102
+        cands = self._candidates[:k]
+        return [Rec(c, float(len(cands) - i)) for i, c in enumerate(cands)]
+
+
+class FakeRerankClient:
+    """Stand-in for :class:`OllamaClient.rank_candidates` with no network.
+
+    By default it *reverses* the candidate order, so a test can tell the rerank
+    apart from the base order. ``calls`` counts live rerank requests; ``ranking``
+    can be overridden to inject malformed model output.
+    """
+
+    def __init__(self, *, available: bool = True, ranking=None) -> None:
+        """Configure reachability and an optional canned ranking; count calls."""
+        self.model = _MODEL
+        self.host = "http://fake"
+        self._available = available
+        self._ranking = ranking
+        self.calls = 0
+
+    def available(self) -> bool:
+        """Return the configured reachability flag."""
+        return self._available
+
+    def rank_candidates(self, query: str, candidate_texts: list[str]) -> list[int]:
+        """Return the canned ranking, else the reversed base order."""
+        self.calls += 1
+        if self._ranking is not None:
+            return list(self._ranking)
+        return list(range(len(candidate_texts)))[::-1]  # reverse the base order
+
+
+_CANDS = ["AEROENG 1", "MUSIC 10", "MATSCI C135"]
+
+
+def _rerank_rec(catalog: pd.DataFrame, client: FakeRerankClient, **kwargs):
+    """Build a reranker over a FakeBase + FakeRerankClient and fit it."""
+    rec = LLMRerankRecommender(
+        base=FakeBase(_CANDS), model=_MODEL, client=client, **kwargs
+    )
+    rec.fit(catalog)
+    return rec
+
+
+def test_rerank_reorders_candidates(mini_catalog: pd.DataFrame) -> None:
+    """The LLM order (reversed base) is what the reranker returns."""
+    rec = _rerank_rec(mini_catalog, FakeRerankClient())
+    recs = rec.recommend_similar("AEROENG C124", k=3)
+    assert [r.course_id for r in recs] == _CANDS[::-1]
+
+
+def test_rerank_excludes_seed(mini_catalog: pd.DataFrame) -> None:
+    """A seed that appears among base candidates is never returned."""
+    rec = _rerank_rec(mini_catalog, FakeRerankClient())
+    recs = rec.recommend_similar("MATSCI C135", k=3)
+    assert "MATSCI C135" not in {r.course_id for r in recs}
+
+
+def test_rerank_sorted_and_capped(mini_catalog: pd.DataFrame) -> None:
+    """Results are sorted by descending score and never exceed k."""
+    rec = _rerank_rec(mini_catalog, FakeRerankClient())
+    recs = rec.recommend_similar("AEROENG C124", k=2)
+    assert len(recs) <= 2
+    assert [r.score for r in recs] == sorted((r.score for r in recs), reverse=True)
+
+
+def test_rerank_caches_by_query_and_candidates(mini_catalog: pd.DataFrame) -> None:
+    """A repeat query reuses the cached order — no second live rerank call."""
+    client = FakeRerankClient()
+    rec = _rerank_rec(mini_catalog, client)
+    rec.recommend_similar("AEROENG C124", k=3)
+    assert client.calls == 1
+    rec.recommend_similar("AEROENG C124", k=3)
+    assert client.calls == 1  # served from cache
+
+
+def test_rerank_cold_offline_skips(mini_catalog: pd.DataFrame) -> None:
+    """Ollama down and no rerank cached → fit raises LLMUnavailable (skip + flag)."""
+    rec = LLMRerankRecommender(
+        base=FakeBase(_CANDS), model=_MODEL, client=FakeRerankClient(available=False)
+    )
+    with pytest.raises(LLMUnavailable):
+        rec.fit(mini_catalog)
+
+
+def test_rerank_warm_offline_uses_cache(mini_catalog: pd.DataFrame) -> None:
+    """A warm cache lets an offline run fit and serve the cached order."""
+    online = _rerank_rec(mini_catalog, FakeRerankClient())
+    online.recommend_similar("AEROENG C124", k=3)  # fills the rerank cache
+    offline = _rerank_rec(mini_catalog, FakeRerankClient(available=False))
+    recs = offline.recommend_similar("AEROENG C124", k=3)
+    assert [r.course_id for r in recs] == _CANDS[::-1]
+
+
+def test_rerank_uncached_offline_falls_back_to_base(mini_catalog: pd.DataFrame) -> None:
+    """Warm cache for one query, but a *different* query offline → base order."""
+    online = _rerank_rec(mini_catalog, FakeRerankClient())
+    online.recommend_similar("AEROENG C124", k=3)  # caches only this query
+    offline = _rerank_rec(mini_catalog, FakeRerankClient(available=False))
+    recs = offline.recommend_similar("AEROENG 1", k=3)  # uncached query
+    base_order = [c for c in _CANDS if c != "AEROENG 1"]
+    assert [r.course_id for r in recs] == base_order
+
+
+def test_rerank_reconciles_bad_model_output(mini_catalog: pd.DataFrame) -> None:
+    """Out-of-range / partial / duplicate indices still yield a full permutation."""
+    # Valid index 2, an out-of-range 9, a duplicate 2 — only 2 is usable.
+    client = FakeRerankClient(ranking=[2, 9, 2])
+    rec = _rerank_rec(mini_catalog, client)
+    recs = rec.recommend_similar("AEROENG C124", k=3)
+    ids = [r.course_id for r in recs]
+    assert ids[0] == _CANDS[2]  # the one valid pick leads
+    assert set(ids) == set(_CANDS)  # every candidate ranked exactly once
+    assert len(ids) == len(set(ids))
+
+
+def test_rerank_by_text(mini_catalog: pd.DataFrame) -> None:
+    """recommend_by_text retrieves then reranks (reversed base order here)."""
+    rec = _rerank_rec(mini_catalog, FakeRerankClient())
+    recs = rec.recommend_by_text("composite materials", k=3)
+    assert [r.course_id for r in recs] == _CANDS[::-1]
+
+
+def test_rerank_empty_query_returns_empty(mini_catalog: pd.DataFrame) -> None:
+    """A whitespace-only query returns no recs and triggers no rerank call."""
+    client = FakeRerankClient()
+    rec = _rerank_rec(mini_catalog, client)
+    assert rec.recommend_by_text("   ", k=3) == []
+    assert client.calls == 0
+
+
+def test_rerank_unknown_seed_raises(mini_catalog: pd.DataFrame) -> None:
+    """An unknown seed id raises KeyError rather than returning garbage."""
+    rec = _rerank_rec(mini_catalog, FakeRerankClient())
+    with pytest.raises(KeyError):
+        rec.recommend_similar("NOPE 999", k=3)
+
+
+def test_rerank_rejects_bad_config() -> None:
+    """Non-positive retrieve_n / candidate_chars are rejected at construction."""
+    with pytest.raises(ValueError):
+        LLMRerankRecommender(base=FakeBase(_CANDS), retrieve_n=0)
+    with pytest.raises(ValueError):
+        LLMRerankRecommender(base=FakeBase(_CANDS), candidate_chars=0)
