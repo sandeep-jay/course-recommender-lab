@@ -35,6 +35,8 @@ Read it before implementing — it defines the phases, interface, and eval metho
 - Tests: `pytest` (tests live in `tests/`)
 - Lint / format: `ruff check .` / `black .`
 - Eval + leaderboard: `python scripts/run_eval.py` (regenerable in one command)
+- Full operational runbook (every script/flag, models, install tiers,
+  troubleshooting): [docs/RUNBOOK.md](docs/RUNBOOK.md)
 
 ## Code quality defaults (per global config)
 - Type hints on signatures, Google-style docstrings on public functions.

@@ -6,6 +6,15 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 ## [Unreleased]
 
 ### Added
+- **`docs/RUNBOOK.md` — operational runbook.** End-to-end how-to-run for the whole
+  repo: install tiers (`dev`/`semantic`/`viz`/`ui` extras + recommended combos), the
+  data pipeline, every script with its exact flags and outputs (`run_eval`,
+  `run_clustering`, `enrich_catalog`, `explain_recs`, `prepare_data`,
+  `build_judged_queries`), the Streamlit UI, the Ollama setup, a **models reference
+  table** (every SBERT/cross-encoder/API/Ollama model — source, how to get it, what
+  it needs), the artifact/cache map, and a troubleshooting table for the common
+  failure modes (run-from-root, missing extras, Ollama down, cold caches). Linked
+  from `README.md` and `CLAUDE.md`.
 - **Phase 8 — minimal Streamlit UI (plan §4).** Surfaces every prior phase from one
   `streamlit run`: the techniques, the Phase 7c explainer, and the full leaderboard.
   - `app/registry.py` — the import-safe, **Streamlit-free** core: `TECHNIQUE_FACTORIES`

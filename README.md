@@ -21,6 +21,9 @@ along with everything under `data/` — keep your own copy).
 
 ## Run
 
+> Full operational runbook — every script + flag, every model, install tiers,
+> artifacts, and troubleshooting — in **[docs/RUNBOOK.md](docs/RUNBOOK.md)**.
+
 ```bash
 python scripts/prepare_data.py   # raw CSV -> data/processed/courses.parquet
 python scripts/enrich_catalog.py # Phase 7: LLM-tag the eval subset via Ollama (--all for full)
