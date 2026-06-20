@@ -49,12 +49,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
     why-line reuses `RecommendationExplainer` (ADR-0011) and degrades to `—` when
     Ollama is down. New optional extra `ui` (`streamlit==1.41.1`);
     `pip install -e ".[ui,semantic]"`.
-  - `tests/test_app_registry.py` (14) + `tests/test_app_glossary.py` (16: every
-    exposed technique has a blurb, every real leaderboard name resolves to a known
-    family, every metric column is defined, `family_of` unknown → `"other"`) +
-    `tests/test_app_projection.py` (4: cold key computes + caches, warm key reuses
-    without recomputing, shape-mismatch recomputes, path encodes method/model/seed).
-    **204 passed** (was 170); ruff/black clean.
+  - `tests/test_app_registry.py` (14) + `tests/test_app_glossary.py` (17: every
+    exposed technique has a blurb, every real name in *both* leaderboards — graph
+    rows included — resolves to a known family, every metric column is defined,
+    `family_of` unknown → `"other"`) + `tests/test_app_projection.py` (4: cold key
+    computes + caches, warm key reuses without recomputing, shape-mismatch recomputes,
+    path encodes method/model/seed). **205 passed** (was 170); ruff/black clean.
   - `pyproject.toml` — `ui` extra (`streamlit==1.41.1`) + `pythonpath = ["."]` so the
     root-level `app` package imports in tests. The Streamlit entrypoint bootstraps
     the repo root onto `sys.path` so `app.*` package imports resolve under
