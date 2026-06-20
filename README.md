@@ -34,7 +34,8 @@ ruff check . && black .          # lint / format
 
 The semantic rung needs `pip install -e ".[semantic]"`; the Phase 6 map needs
 `".[viz]"` (matplotlib; UMAP optional — t-SNE fallback otherwise); the Phase 8 UI
-needs `".[ui,semantic]"`. The Phase 7 LLM rung needs a local
+needs `".[ui,semantic]"` (add `viz` for the Map view's faster UMAP projection, else
+it falls back to t-SNE). The Phase 7 LLM rung needs a local
 [Ollama](https://ollama.com) daemon + a pulled model (no API key, no extra Python
 deps); `run_eval` skips it gracefully when Ollama is absent, and the UI's opt-in
 "why this fits" column simply stays blank.
@@ -77,12 +78,14 @@ graph — with full metrics and bootstrap CIs, written to one-command leaderboar
   Track B.8). The two ranking failures pointed here: the LLM earns its cost
   *explaining* a ranking, not producing one
   ([llm.py](src/courserec/recommenders/llm.py), [ADR-0011](docs/adr/0011-llm-explainer.md)).
-- **Phase 8 — minimal Streamlit UI:** three views — Explore (course or free-text →
+- **Phase 8 — minimal Streamlit UI:** four views — Explore (course or free-text →
   top-k with scores + an opt-in "why this fits" column), Compare (one query, two
-  techniques), Leaderboard (the eval table + UMAP map). Testable, Streamlit-free
-  modules — a technique registry ([app/registry.py](app/registry.py)) and an
-  explanatory glossary ([app/glossary.py](app/glossary.py): per-technique blurbs,
-  per-metric definitions, the eval lenses) — feed a thin view layer
+  techniques), Leaderboard (the eval table + map), and a live **Map** (an interactive
+  2-D projection where a seed + its SBERT recommendations light up). Testable,
+  Streamlit-free modules — a technique registry ([app/registry.py](app/registry.py)),
+  an explanatory glossary ([app/glossary.py](app/glossary.py): per-technique blurbs,
+  per-metric definitions, the eval lenses), and a cached projection
+  ([app/projection.py](app/projection.py)) — feed a thin view layer
   ([app/streamlit_app.py](app/streamlit_app.py)). The UI exposes a fast offline
   subset of rungs while the full sweep stays in the leaderboard, with a `family`
   column and hover-for-definition tooltips so the cryptic rows read clearly

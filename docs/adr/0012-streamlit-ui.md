@@ -113,3 +113,20 @@ technique has a blurb, every real leaderboard name resolves to a known family, e
 metric column is defined. This is the same decision (an import-safe core under unit
 test + a thin Streamlit view), not a new one, so it extends this ADR rather than
 opening another.
+
+**Addendum — live interactive Map view.** The Leaderboard view shows the Phase 6
+*static* PNG; a fourth **Map** view adds a live, interactive 2-D projection (Altair —
+hover/zoom/pan, no new dependency) where picking a seed lights up its top-k SBERT
+recommendations (🔴 seed / 🔺 recs / grey rest), tying the embedding map to the
+recommender. Two constraints shaped it: (1) projecting ~11k vectors is slow (t-SNE
+~12 s; UMAP faster but needs the `viz` extra) and deterministic given the seed, so
+`app/projection.py` (the same import-safe, tested pattern) computes the layout once
+and **caches it to `artifacts/map/`** keyed by `(method, model, seed)`, recomputing
+only on a row-count mismatch — never recompute-per-interaction, never serve a stale
+layout; (2) the points and the highlight must come from the *same* space, so both use
+the default MiniLM rung. A "UMAP (fast)/t-SNE" toggle degrades honestly — without
+`umap-learn`, `"auto"` falls back to t-SNE and the caption names the projector
+actually used. Tested by `tests/test_app_projection.py` (cold key computes + caches,
+warm key reuses without recomputing, shape-mismatch recomputes, path encodes
+method/model/seed) with a stub projector, so the suite stays fast. Still the same
+decision — a cached, testable core under a thin Altair view.

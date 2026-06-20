@@ -5,34 +5,39 @@
 
 ## Current state
 
-Phases 0–8 are green: `pytest` = **200 passed**, `ruff`/`black` clean. **Phase 8
+Phases 0–8 are green: `pytest` = **204 passed**, `ruff`/`black` clean. **Phase 8
 (minimal Streamlit UI, plan §4) is complete** — every prior phase is now reachable
 from one `streamlit run app/streamlit_app.py`.
 
-Three views: **Explore** (course or free-text → top-k with scores + an opt-in "why
+Four views: **Explore** (course or free-text → top-k with scores + an opt-in "why
 this fits" column wired to the Phase 7c explainer), **Compare** (one query, two
 techniques side by side), **Leaderboard** (`results/leaderboard.csv` table + the
-Phase 6 UMAP map). The load-bearing choice (ADR-0012) is a pattern of **import-safe,
-Streamlit-free, unit-tested modules feeding a thin view layer**: `app/registry.py`
-(technique factories + label helper) and `app/glossary.py` (the **explanatory
-layer** — per-technique blurbs, per-family paragraphs, per-metric definitions, the
-three eval lenses + leakage note). The glossary is wired in everywhere users need
-context: a blurb under each technique picker (Explore + both Compare columns), and on
-the Leaderboard a `family` column, hover-for-definition column tooltips, and "How to
-read this leaderboard" / "Technique families" expanders. The UI exposes a **curated
-offline subset** of six rungs (SBERT MiniLM (default), SBERT MPNet, TF-IDF, BM25,
-LSA, Metadata+text); the *full* sweep stays in `scripts/run_eval.py` and the
-Leaderboard table. Catalog, fitted techniques, and the explainer are
+static Phase 6 map), and **Map** (a live, interactive Altair projection where a
+selected seed + its top-k SBERT recommendations light up). The load-bearing choice
+(ADR-0012) is a pattern of **import-safe, Streamlit-free, unit-tested modules feeding
+a thin view layer**: `app/registry.py` (technique factories + label helper),
+`app/glossary.py` (the **explanatory layer** — per-technique blurbs, per-family
+paragraphs, per-metric definitions, the three eval lenses + leakage note), and
+`app/projection.py` (cached 2-D layout, keyed by `(method, model, seed)` in
+`artifacts/map/`). The glossary is wired in everywhere users need context: a blurb
+under each technique picker (Explore + both Compare columns), and on the Leaderboard
+a `family` column, hover-for-definition column tooltips, and "How to read this
+leaderboard" / "Technique families" expanders. The UI exposes a **curated offline
+subset** of six rungs (SBERT MiniLM (default), SBERT MPNet, TF-IDF, BM25, LSA,
+Metadata+text); the *full* sweep stays in `scripts/run_eval.py` and the Leaderboard
+table. Catalog, fitted techniques, the explainer, and the projection are
 `st.cache_resource`-cached so interactions never re-fit; the why-line degrades to
 `—` when Ollama is down.
 
 Validated **headlessly** via Streamlit's `AppTest` (query "practical deep learning"
-→ `DATA C182` top hit; technique blurbs, the leaderboard `family` column, and both
-glossary expanders render; no exceptions in any view). New optional extra `ui`
-(`streamlit==1.41.1`) + `pythonpath = ["."]` in `pyproject`; the entrypoint
-bootstraps the repo root onto `sys.path` so `app.*` imports resolve under
-`streamlit run`. ADR-0012 (+ glossary addendum) written; `README.md`, CHANGELOG, ADR
-index all synced.
+→ `DATA C182` top hit; technique blurbs, the leaderboard `family` column, both
+glossary expanders, and the Map view base + seed-overlay all render; no exceptions in
+any of the four views). New optional extra `ui` (`streamlit==1.41.1`) + `pythonpath =
+["."]` in `pyproject`; the entrypoint bootstraps the repo root onto `sys.path` so
+`app.*` imports resolve under `streamlit run`. **Map note:** UMAP needs the `viz`
+extra; without it the projection falls back to t-SNE (~12 s cold over ~11k vectors,
+then cached, instant warm). ADR-0012 (+ glossary & Map addenda) written; `README.md`,
+CHANGELOG, ADR index all synced.
 
 **SBERT MiniLM remains the top rung on both ranking lenses; the UI defaults to it.**
 

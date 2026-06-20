@@ -29,6 +29,8 @@ _REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
+import altair as alt  # noqa: E402
+import numpy as np  # noqa: E402
 import pandas as pd  # noqa: E402
 import streamlit as st  # noqa: E402
 
@@ -41,20 +43,31 @@ from app.glossary import (  # noqa: E402
     family_label,
     metric_help,
 )
+from app.projection import load_or_compute_coords  # noqa: E402
 from app.registry import (  # noqa: E402
     DEFAULT_TECHNIQUE,
     course_label,
     make_recommender,
     technique_names,
 )
-from courserec.config import PLOTS_DIR, RESULTS_DIR  # noqa: E402
+from courserec.cluster import load_sbert_embeddings  # noqa: E402
+from courserec.config import PLOTS_DIR, RANDOM_SEED, RESULTS_DIR  # noqa: E402
 from courserec.data import load_processed  # noqa: E402
 from courserec.interfaces import Rec, Recommender  # noqa: E402
+from courserec.recommenders.embeddings import EmbeddingsUnavailable  # noqa: E402
 from courserec.recommenders.llm import RecommendationExplainer  # noqa: E402
 
 LEADERBOARD_CSV = RESULTS_DIR / "leaderboard.csv"
 EMBEDDING_MAP_PNG = PLOTS_DIR / "embedding_map.png"
 _MAX_K = 20
+# The Map view projects this model's embeddings (the default rung) and overlays its
+# recommendations, so the points and the highlight come from the same space.
+_MAP_MODEL = "all-MiniLM-L6-v2"
+_MAP_HEIGHT = 540  # px; the interactive scatter's plotting height.
+_MAP_TOP_SUBJECTS = 12  # color the N most common subjects, the rest as "(other)".
+
+# Vega refuses >5000 rows by default; the catalog is ~11k points, all sent to render.
+alt.data_transformers.disable_max_rows()
 
 
 # --- cached resources -------------------------------------------------------
@@ -87,6 +100,35 @@ def _fitted(name: str) -> Recommender:
 def _explainer() -> RecommendationExplainer:
     """Fit the "why this fits" explainer once (lazy, degrades to None offline)."""
     return RecommendationExplainer().fit(_courses())
+
+
+@st.cache_resource(show_spinner="Projecting the catalog to 2-D…")
+def _map_frame(method: str) -> tuple[pd.DataFrame, str]:
+    """Project the SBERT catalog to 2-D (cached) and join course metadata.
+
+    Args:
+        method: ``"auto"`` (UMAP if installed, else t-SNE) or ``"tsne"``.
+
+    Returns:
+        A ``(DataFrame, used_method)`` pair: one row per course with ``x``/``y``
+        coordinates, ``course_id``, ``title``, ``subject``; and the projector used.
+    """
+    courses = _courses()
+    embeddings, course_ids = load_sbert_embeddings(courses, model_name=_MAP_MODEL)
+    coords, used = load_or_compute_coords(
+        embeddings, method, model_name=_MAP_MODEL, seed=RANDOM_SEED
+    )
+    meta = courses.loc[course_ids]
+    frame = pd.DataFrame(
+        {
+            "x": coords[:, 0],
+            "y": coords[:, 1],
+            "course_id": course_ids,
+            "title": meta["title"].to_numpy(),
+            "subject": meta["subject"].to_numpy(),
+        }
+    )
+    return frame, used
 
 
 # --- shared helpers ---------------------------------------------------------
@@ -206,6 +248,59 @@ def _leaderboard_glossary(columns) -> None:
                 st.markdown(f"- **{label}** — {FAMILY_DESCRIPTIONS[key]}")
 
 
+_MAP_X = alt.X("x:Q", axis=None, scale=alt.Scale(zero=False))
+_MAP_Y = alt.Y("y:Q", axis=None, scale=alt.Scale(zero=False))
+_MAP_TOOLTIP = ["course_id", "title", "subject"]
+
+
+def _map_base_chart(frame: pd.DataFrame) -> alt.Chart:
+    """Scatter every course, colored by its (top-N) subject — the plain explore map."""
+    top = frame["subject"].value_counts().head(_MAP_TOP_SUBJECTS).index
+    data = frame.assign(
+        group=frame["subject"].where(frame["subject"].isin(top), "(other)")
+    )
+    return (
+        alt.Chart(data)
+        .mark_circle(size=18, opacity=0.55)
+        .encode(
+            x=_MAP_X,
+            y=_MAP_Y,
+            color=alt.Color("group:N", title=f"Subject (top {_MAP_TOP_SUBJECTS})"),
+            tooltip=_MAP_TOOLTIP,
+        )
+        .properties(height=_MAP_HEIGHT)
+        .interactive()
+    )
+
+
+def _map_overlay_chart(
+    frame: pd.DataFrame, seed_id: str, rec_ids: set[str]
+) -> alt.Chart:
+    """Grey the catalog, then light up the seed (diamond) and its recs (triangles)."""
+    role = np.where(
+        frame["course_id"] == seed_id,
+        "seed",
+        np.where(frame["course_id"].isin(rec_ids), "recommendation", "other"),
+    )
+    data = frame.assign(role=role)
+    background = (
+        alt.Chart(data[data["role"] == "other"])
+        .mark_circle(size=12, opacity=0.18, color="lightgray")
+        .encode(x=_MAP_X, y=_MAP_Y, tooltip=_MAP_TOOLTIP)
+    )
+    recs = (
+        alt.Chart(data[data["role"] == "recommendation"])
+        .mark_point(size=130, shape="triangle-up", filled=True, color="#ff7f0e")
+        .encode(x=_MAP_X, y=_MAP_Y, tooltip=_MAP_TOOLTIP)
+    )
+    seed = (
+        alt.Chart(data[data["role"] == "seed"])
+        .mark_point(size=360, shape="diamond", filled=True, color="#d62728")
+        .encode(x=_MAP_X, y=_MAP_Y, tooltip=_MAP_TOOLTIP)
+    )
+    return (background + recs + seed).properties(height=_MAP_HEIGHT).interactive()
+
+
 # --- views ------------------------------------------------------------------
 
 
@@ -320,6 +415,51 @@ def _view_leaderboard() -> None:
         )
     else:
         st.info("No map yet — run `python scripts/run_clustering.py` to generate it.")
+    st.caption("For a live, zoomable version, see the **Map** view.")
+
+
+def _view_map() -> None:
+    """Map: a live, interactive 2-D projection that can highlight a seed + its recs."""
+    st.subheader("Map")
+    st.caption(
+        "Each point is a course, placed by its SBERT embedding projected to 2-D. "
+        "Hover for the course, scroll to zoom, drag to pan."
+    )
+    method_label = st.radio(
+        "Projection", ["UMAP (fast)", "t-SNE (slower)"], horizontal=True, key="map_proj"
+    )
+    method = "tsne" if method_label.startswith("t-SNE") else "auto"
+    try:
+        frame, used = _map_frame(method)
+    except EmbeddingsUnavailable:
+        st.warning(
+            "Semantic embeddings unavailable — install `.[semantic]` to build the map."
+        )
+        return
+
+    options = ["(none — just explore the map)", *_course_labels()]
+    choice = st.selectbox(
+        "Highlight a seed course and its recommendations", options, key="map_seed"
+    )
+    if choice == options[0]:
+        st.altair_chart(_map_base_chart(frame), use_container_width=True)
+    else:
+        k = st.slider("Recommendations to highlight (k)", 1, _MAX_K, 10, key="map_k")
+        seed_id = _label_to_id(choice)
+        recs = _fitted(DEFAULT_TECHNIQUE).recommend_similar(seed_id, k=k)
+        rec_ids = {r.course_id for r in recs}
+        st.altair_chart(
+            _map_overlay_chart(frame, seed_id, rec_ids), use_container_width=True
+        )
+        st.caption(
+            f"🔴 {seed_id} (seed)  ·  🔺 its top-{len(rec_ids)} SBERT recommendations  "
+            "·  grey = the rest of the catalog. Nearby points share embedding-space "
+            "neighborhoods, so good recommendations cluster around the seed."
+        )
+    st.caption(
+        f"{len(frame):,} courses · projector: {used} · seed={RANDOM_SEED} "
+        "(reproducible) · projection cached to `artifacts/map/`."
+    )
 
 
 def main() -> None:
@@ -330,13 +470,14 @@ def main() -> None:
         "Content-based recommenders over the UC Berkeley catalog "
         "(~11k courses) — explore, compare, and rank techniques."
     )
-    view = st.sidebar.radio("View", ["Explore", "Compare", "Leaderboard"])
-    if view == "Explore":
-        _view_explore()
-    elif view == "Compare":
-        _view_compare()
-    else:
-        _view_leaderboard()
+    views = {
+        "Explore": _view_explore,
+        "Compare": _view_compare,
+        "Leaderboard": _view_leaderboard,
+        "Map": _view_map,
+    }
+    view = st.sidebar.radio("View", list(views))
+    views[view]()
 
 
 if __name__ == "__main__":

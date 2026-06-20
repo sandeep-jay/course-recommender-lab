@@ -14,6 +14,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
     `course_label` (`"<id> — <title>"`, falls back to the bare id on a missing title).
     Curated subset by design (no API/LLM/cross-encoder/graph rungs) — fast, offline,
     no key; the full sweep stays in `scripts/run_eval.py` and the Leaderboard table.
+  - `app/projection.py` + a fourth **Map view** — a live, interactive 2-D projection
+    of the SBERT catalog (Altair: hover for the course, scroll-zoom, pan). Pick a seed
+    and its top-k SBERT recommendations light up (🔴 seed / 🔺 recs / grey rest), so
+    you can *see* where recommendations land relative to the seed. UMAP/t-SNE toggle
+    (UMAP needs `.[viz]`, else t-SNE). Projecting ~11k vectors is the slow step, so
+    `app/projection.py` (Streamlit-free, tested) computes the layout once and caches
+    it to `artifacts/map/` keyed by `(method, model, seed)` — recompute on a shape
+    mismatch, never serve a stale layout. ~12 s cold (t-SNE), instant warm.
   - `app/glossary.py` — an **explanatory layer** (same Streamlit-free, tested pattern
     as the registry) so users running Compare or reading the leaderboard understand
     what they see: a one-line blurb per exposed technique, a paragraph per *family*
@@ -33,18 +41,21 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
     why-line reuses `RecommendationExplainer` (ADR-0011) and degrades to `—` when
     Ollama is down. New optional extra `ui` (`streamlit==1.41.1`);
     `pip install -e ".[ui,semantic]"`.
-  - `tests/test_app_registry.py` (14 tests) + `tests/test_app_glossary.py` (16 tests:
-    every exposed technique has a blurb, every real leaderboard name resolves to a
-    known family, every metric column is defined, `family_of` unknown → `"other"`).
-    **200 passed** (was 170); ruff/black clean.
+  - `tests/test_app_registry.py` (14) + `tests/test_app_glossary.py` (16: every
+    exposed technique has a blurb, every real leaderboard name resolves to a known
+    family, every metric column is defined, `family_of` unknown → `"other"`) +
+    `tests/test_app_projection.py` (4: cold key computes + caches, warm key reuses
+    without recomputing, shape-mismatch recomputes, path encodes method/model/seed).
+    **204 passed** (was 170); ruff/black clean.
   - `pyproject.toml` — `ui` extra (`streamlit==1.41.1`) + `pythonpath = ["."]` so the
     root-level `app` package imports in tests. The Streamlit entrypoint bootstraps
     the repo root onto `sys.path` so `app.*` package imports resolve under
     `streamlit run` (which otherwise puts only `app/` on the path).
   - **Validated headlessly** via Streamlit's `AppTest`: query *"practical deep
     learning"* → `DATA C182` (Deep Neural Networks) top hit; technique blurbs, the
-    leaderboard `family` column, and both glossary expanders render; all three views
-    raise no exceptions. ADR-0012.
+    leaderboard `family` column, both glossary expanders, and the Map view (base +
+    seed-overlay, 3-layer Altair spec over 11,073 points) all render with no
+    exceptions in any of the four views. ADR-0012.
 - **Phase 7 / B.8c — "why this fits" explainer (closes Track B.8).** The last B.8
   piece, and the one place the two negative results (tag rung ADR-0009, reranker
   ADR-0010) pointed: not ranking, but *justifying* a ranking SBERT already
