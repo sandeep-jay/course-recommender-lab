@@ -20,6 +20,7 @@ from courserec.recommenders.llm import (
     LLMRerankRecommender,
     LLMTagRecommender,
     LLMUnavailable,
+    RecommendationExplainer,
     enrich_courses,
 )
 
@@ -351,3 +352,113 @@ def test_rerank_rejects_bad_config() -> None:
         LLMRerankRecommender(base=FakeBase(_CANDS), retrieve_n=0)
     with pytest.raises(ValueError):
         LLMRerankRecommender(base=FakeBase(_CANDS), candidate_chars=0)
+
+
+# --------------------------------------------------------------------------- #
+# "Why this fits" explainer (Track B.8c)                                       #
+# --------------------------------------------------------------------------- #
+
+
+class FakeExplainClient:
+    """Stand-in for :class:`OllamaClient.explain` with no network.
+
+    Returns a deterministic reason naming the candidate title, so a test can
+    assert it propagated. ``calls`` counts live explain requests; ``reason`` can
+    be overridden (e.g. to ``""`` to exercise the blank-reason path).
+    """
+
+    def __init__(self, *, available: bool = True, reason=None) -> None:
+        """Configure reachability and an optional canned reason; count calls."""
+        self.model = _MODEL
+        self.host = "http://fake"
+        self._available = available
+        self._reason = reason
+        self.calls = 0
+
+    def available(self) -> bool:
+        """Return the configured reachability flag."""
+        return self._available
+
+    def explain(self, query: str, candidate_title: str, candidate_text: str) -> str:
+        """Return the canned reason, else a deterministic one naming the title."""
+        self.calls += 1
+        if self._reason is not None:
+            return self._reason
+        return f"fits because of {candidate_title}"
+
+
+def _explainer(catalog: pd.DataFrame, client: FakeExplainClient, **kwargs):
+    """Build a RecommendationExplainer over a FakeExplainClient and fit it."""
+    return RecommendationExplainer(model=_MODEL, client=client, **kwargs).fit(catalog)
+
+
+def test_explain_returns_reason(mini_catalog: pd.DataFrame) -> None:
+    """A live explanation propagates the model's reason string."""
+    rec = _explainer(mini_catalog, FakeExplainClient())
+    reason = rec.explain("composite materials", "MATSCI C135")
+    assert reason == "fits because of Materials in Extreme Environments"
+
+
+def test_explain_seed_uses_seed_text(mini_catalog: pd.DataFrame) -> None:
+    """explain_seed resolves the seed's text and explains the candidate."""
+    rec = _explainer(mini_catalog, FakeExplainClient())
+    reason = rec.explain_seed("AEROENG C124", "MATSCI C135")
+    assert reason and "Materials in Extreme Environments" in reason
+
+
+def test_explain_caches_by_query_and_candidate(mini_catalog: pd.DataFrame) -> None:
+    """A repeat (query, candidate) reuses the cache — no second live call."""
+    client = FakeExplainClient()
+    rec = _explainer(mini_catalog, client)
+    rec.explain("composite materials", "MATSCI C135")
+    assert client.calls == 1
+    rec.explain("composite materials", "MATSCI C135")
+    assert client.calls == 1  # served from cache
+
+
+def test_explain_warm_offline_uses_cache(mini_catalog: pd.DataFrame) -> None:
+    """A warm cache lets an offline explainer serve the cached reason."""
+    online = _explainer(mini_catalog, FakeExplainClient())
+    online.explain("composite materials", "MATSCI C135")  # fills the cache
+    offline = _explainer(mini_catalog, FakeExplainClient(available=False))
+    assert offline.explain("composite materials", "MATSCI C135") is not None
+
+
+def test_explain_cold_offline_returns_none(mini_catalog: pd.DataFrame) -> None:
+    """Ollama down and nothing cached → None (UI omits the line), never a raise."""
+    rec = _explainer(mini_catalog, FakeExplainClient(available=False))
+    assert rec.explain("composite materials", "MATSCI C135") is None
+
+
+def test_explain_empty_query_returns_none(mini_catalog: pd.DataFrame) -> None:
+    """A whitespace-only query returns None and triggers no live call."""
+    client = FakeExplainClient()
+    rec = _explainer(mini_catalog, client)
+    assert rec.explain("   ", "MATSCI C135") is None
+    assert client.calls == 0
+
+
+def test_explain_blank_reason_returns_none(mini_catalog: pd.DataFrame) -> None:
+    """A blank model reason is treated as no explanation (None), not cached."""
+    rec = _explainer(mini_catalog, FakeExplainClient(reason=""))
+    assert rec.explain("composite materials", "MATSCI C135") is None
+
+
+def test_explain_unknown_candidate_raises(mini_catalog: pd.DataFrame) -> None:
+    """An unknown candidate id raises KeyError rather than calling the model."""
+    rec = _explainer(mini_catalog, FakeExplainClient())
+    with pytest.raises(KeyError):
+        rec.explain("composite materials", "NOPE 999")
+
+
+def test_explain_before_fit_raises() -> None:
+    """Explaining before fit raises RuntimeError, not an attribute error."""
+    rec = RecommendationExplainer(model=_MODEL, client=FakeExplainClient())
+    with pytest.raises(RuntimeError):
+        rec.explain("composite materials", "MATSCI C135")
+
+
+def test_explain_rejects_bad_config() -> None:
+    """Non-positive candidate_chars is rejected at construction."""
+    with pytest.raises(ValueError):
+        RecommendationExplainer(model=_MODEL, candidate_chars=0)

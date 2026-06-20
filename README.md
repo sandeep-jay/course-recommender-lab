@@ -26,6 +26,7 @@ python scripts/prepare_data.py   # raw CSV -> data/processed/courses.parquet
 python scripts/enrich_catalog.py # Phase 7: LLM-tag the eval subset via Ollama (--all for full)
 python scripts/run_eval.py       # fit + score all techniques -> results/leaderboard.{md,csv}
 python scripts/run_clustering.py # Phase 6 diagnostic -> results/cluster_report.md + plots/
+python scripts/explain_recs.py --seed "COMPSCI 189"  # Phase 7c: "why this fits" lines via Ollama
 pytest                           # tests
 ruff check . && black .          # lint / format
 ```
@@ -68,6 +69,11 @@ graph — with full metrics and bootstrap CIs, written to one-command leaderboar
   them over their *full* text in one deterministic call (cached); **measured — does
   not beat the base** (a second honest negative result)
   ([llm.py](src/courserec/recommenders/llm.py), [ADR-0010](docs/adr/0010-llm-reranker.md)).
+- **Phase 7c — "why this fits" explainer:** qwen3:8b writes a one-line justification
+  for an SBERT recommendation — a UI helper, **not** a scored recommender (closes
+  Track B.8). The two ranking failures pointed here: the LLM earns its cost
+  *explaining* a ranking, not producing one
+  ([llm.py](src/courserec/recommenders/llm.py), [ADR-0011](docs/adr/0011-llm-explainer.md)).
 
 **Headline:** SBERT MiniLM tops both ranking lenses and beats the best lexical
 config on free text *decisively* (NDCG@10 0.682 vs 0.499, non-overlapping CIs).
@@ -87,8 +93,10 @@ text 0.656 vs 0.682 — both within CIs, recall@10 dips) because SBERT's top-20 
 already near-ceiling, so reordering it has no headroom and costs ~4 s/query
 ([ADR-0010](docs/adr/0010-llm-reranker.md)). See
 [docs/RESULTS.md](docs/RESULTS.md) and [docs/TRADEOFFS.md](docs/TRADEOFFS.md).
-Next: the "why this fits" explanation over full candidate text (Phase 7c), or a
-reranker follow-up (TF-IDF base / qwen3:32b), or the Phase 8 Streamlit UI. The
+The "why this fits" explainer (Phase 7c) lands the LLM where it pays off —
+*justifying* an SBERT ranking, not producing one — and closes Track B.8
+([ADR-0011](docs/adr/0011-llm-explainer.md)). Next: the Phase 8 Streamlit UI (which
+surfaces that explainer line), or a reranker follow-up (TF-IDF base / qwen3:32b). The
 swappable `Recommender` interface is in
 [src/courserec/interfaces.py](src/courserec/interfaces.py).
 

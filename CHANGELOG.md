@@ -5,6 +5,42 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ## [Unreleased]
 
+### Added
+- **Phase 7 / B.8c — "why this fits" explainer (closes Track B.8).** The last B.8
+  piece, and the one place the two negative results (tag rung ADR-0009, reranker
+  ADR-0010) pointed: not ranking, but *justifying* a ranking SBERT already
+  produced.
+  - `src/courserec/recommenders/llm.py` — `RecommendationExplainer`: given a query
+    (a seed course's text or a free-text search) and one already-recommended
+    candidate, returns a single short "why this fits" sentence for the Phase 8 UI.
+    Deliberately **not** a `Recommender` — no `list[Rec]`, no ranking, and **never
+    scored by `eval.py` or the leaderboard** (an explanation has no ground-truth
+    ordering to measure; ADR-0011). `fit` captures `text`/`title` maps and opens
+    the cache (returns `self`); generation is lazy at `explain` time.
+    `explain_seed` resolves the seed's own text for item-to-item mode.
+  - `OllamaClient.explain` — (query, candidate title + text) → one validated
+    sentence under a JSON-schema `format` (`{"reason": str}`), deterministic
+    (`temperature=0`, `seed=RANDOM_SEED`, `think=False`), whitespace-normalized.
+    Zero new dependencies (reuses the ADR-0009 stdlib-`urllib` client).
+  - `_ExplanationCache` — `sha1(model + normalized-query + candidate-id)` →
+    `artifacts/llmcache/<model>/explanations.json`; one deterministic call per
+    (query, candidate), ever.
+  - **Degrades to `None`, never raises on unavailability** — empty query, blank
+    model reason, or Ollama down with no cached entry all return `None` (the UI
+    omits the line). Unlike the two ranking rungs, `fit` never skips: an optional
+    UI line has no "useless duplicate" failure mode. Only an unknown `candidate_id`
+    raises (`KeyError`, a programming bug).
+  - `scripts/explain_recs.py` — CLI driver (`--seed`/`--query`, SBERT base, live
+    Ollama or a clear exit) to validate the rung and warm the cache for the UI.
+  - `tests/test_llm.py` — 10 new tests via `FakeExplainClient` (no daemon): reason
+    propagation, seed-text resolution, cache reuse, warm-offline hit, cold-offline
+    `None`, empty-query `None`, blank-reason `None`, unknown-candidate `KeyError`,
+    before-`fit` `RuntimeError`, bad-config. **170 passed** (was 160).
+  - **Validated live (qwen3:8b):** concrete on-topic one-liners in both modes
+    (e.g. `COMPSCI 189 → STAT C241A`: "Both courses cover statistical learning
+    theory, classification, regression, clustering…"). ADR-0011 written;
+    `docs/adr/README.md` updated.
+
 ### Measured
 - **Phase 7 / B.8b — zero-shot LLM reranker: measured, does not beat the base.**
   Ran `scripts/run_eval.py` with Ollama up (qwen3:8b) to fill `reranks.json` (1117

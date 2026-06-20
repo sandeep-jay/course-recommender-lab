@@ -118,3 +118,17 @@ numbers see [RESULTS.md](RESULTS.md) and the
   verdict: not competitive as a ranker — the value of the 100% tag cache is for the
   future reranker + "why this fits" UI, which use the full candidate text. See
   [ADR-0009](adr/0009-llm-enrichment-ollama.md).
+
+- **"Why this fits" explainer (Phase 7 / B.8c — closes B.8).** The two LLM ranking
+  rungs both lost to SBERT (tags ADR-0009, reranker ADR-0010), and that is exactly
+  the signal for where the LLM *does* pay off: not producing a ranking, but
+  **justifying** one SBERT already produced. `RecommendationExplainer` takes a
+  (query, recommended-candidate) pair and returns one short sentence naming the
+  shared topic/skill, for the Phase 8 UI. It is **not** a `Recommender` and is
+  **not** on the leaderboard — a free-text justification has no ground-truth
+  ordering to score, so it is assessed by inspection, not a metric. Same machinery
+  as the other LLM rungs (deterministic, cached by `sha1(model+query+candidate-id)`,
+  zero new deps); the one difference is graceful degradation — because the line is
+  *optional*, every unavailable path returns `None` (UI omits the line) instead of
+  skipping a fit. Validated live (qwen3:8b) producing concrete on-topic one-liners.
+  See [ADR-0011](adr/0011-llm-explainer.md).

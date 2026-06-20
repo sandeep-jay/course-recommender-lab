@@ -123,6 +123,23 @@ _RERANK_INSTRUCTION = (
     "query, including every number exactly once. Return ONLY the JSON."
 )
 
+#: JSON schema for the "why this fits" explainer (§2.8c): the model returns one
+#: short justification string, validated server-side so the reply is the reason
+#: and nothing else (no preamble, no thinking).
+_EXPLAIN_SCHEMA: dict = {
+    "type": "object",
+    "properties": {"reason": {"type": "string"}},
+    "required": ["reason"],
+}
+
+_EXPLAIN_INSTRUCTION = (
+    "You explain course recommendations for a catalog UI. Given a query (a seed "
+    "course's text, or a free-text search) and one recommended course, write a "
+    "single short sentence (at most ~25 words) saying why the recommended course "
+    "fits the query. Name the concrete shared topic or skill; do not restate the "
+    "title verbatim, hedge, or add a preamble. Return ONLY the JSON."
+)
+
 
 def _slug(name: str) -> str:
     """Turn a technique or model ``name`` into a filesystem-safe slug."""
@@ -312,6 +329,40 @@ class OllamaClient:
         except (urllib.error.URLError, OSError, ValueError, KeyError, TypeError) as exc:
             raise LLMUnavailable(f"Ollama rerank failed: {exc}") from exc
 
+    def explain(self, query: str, candidate_title: str, candidate_text: str) -> str:
+        """Generate a one-sentence "why this fits" justification for one candidate.
+
+        Args:
+            query: The seed course's text (item-to-item mode) or a free-text query.
+            candidate_title: The recommended course's title (for a readable prompt).
+            candidate_text: The recommended course's full text.
+
+        Returns:
+            A single short sentence, whitespace-normalized; may be empty if the
+            model returned a blank reason.
+
+        Raises:
+            LLMUnavailable: If the request fails or the reply is not valid JSON.
+        """
+        prompt = (
+            f"{_EXPLAIN_INSTRUCTION}\n\nQuery: {query}\n\n"
+            f"Recommended course — {candidate_title}: {candidate_text}"
+        )
+        payload = {
+            "model": self.model,
+            "prompt": prompt,
+            "format": _EXPLAIN_SCHEMA,
+            "stream": False,
+            "think": False,
+            "options": {"temperature": 0, "seed": RANDOM_SEED},
+        }
+        try:
+            reply = self._post("/api/generate", payload)
+            reason = json.loads(reply["response"])["reason"]
+        except (urllib.error.URLError, OSError, ValueError, KeyError, TypeError) as exc:
+            raise LLMUnavailable(f"Ollama explain failed: {exc}") from exc
+        return _normalize_text(str(reason))
+
 
 # --------------------------------------------------------------------------- #
 # Tag cache (content-addressed, shared across runs)                           #
@@ -398,6 +449,53 @@ class _RerankCache:
     def put(self, key: str, ranked_ids: list[str]) -> None:
         """Insert a ranked id list for a key (call :meth:`save` to persist)."""
         self._store[key] = ranked_ids
+
+    def save(self) -> None:
+        """Persist the store to disk (atomic enough for a single local writer)."""
+        self._path.parent.mkdir(parents=True, exist_ok=True)
+        self._path.write_text(json.dumps(self._store))
+
+    def __len__(self) -> int:
+        return len(self._store)
+
+
+class _ExplanationCache:
+    """Why-this-fits cache keyed by ``sha1(model + query + candidate-id)``.
+
+    One ``explanations.json`` mapping each (query, candidate) to the model's
+    one-line justification, shared across runs so a given explanation is generated
+    at most once. The candidate id (not its text) is part of the key, matching the
+    rerank cache — the catalog is static, so the id pins the text.
+    """
+
+    def __init__(self, model_key: str) -> None:
+        """Open (or initialize) the explanation cache for a given model identity."""
+        self._model_key = model_key
+        self._path = _LLMCACHE_DIR / _slug(model_key) / "explanations.json"
+        self._store: dict[str, str] = {}
+        if self._path.exists():
+            self._store = json.loads(self._path.read_text())
+            logger.info(
+                "explaincache[%s]: loaded %d entries", model_key, len(self._store)
+            )
+
+    def key(self, query: str, candidate_id: str) -> str:
+        """Hash ``model_key + normalized query + candidate id`` to the cache key."""
+        h = hashlib.sha1()
+        h.update(self._model_key.encode())
+        h.update(b"\x00")
+        h.update(_normalize_text(query).encode())
+        h.update(b"\x00")
+        h.update(candidate_id.encode())
+        return h.hexdigest()
+
+    def get(self, key: str) -> str | None:
+        """Return a cached explanation for a key, or ``None`` on a miss."""
+        return self._store.get(key)
+
+    def put(self, key: str, reason: str) -> None:
+        """Insert an explanation for a key (call :meth:`save` to persist)."""
+        self._store[key] = reason
 
     def save(self) -> None:
         """Persist the store to disk (atomic enough for a single local writer)."""
@@ -898,3 +996,156 @@ class LLMRerankRecommender(Recommender):
         retrieved = self._base.recommend_by_text(query, k=self.config["retrieve_n"])
         candidates = [r.course_id for r in retrieved]
         return self._rerank(normalized, candidates, k)
+
+
+# --------------------------------------------------------------------------- #
+# "Why this fits" explainer (Track B.8c)                                       #
+# --------------------------------------------------------------------------- #
+
+
+class RecommendationExplainer:
+    """Generate a one-line "why this fits" justification for a recommendation.
+
+    This is the last Track B.8 piece (plan §2.8c) and the one place the evidence
+    says the local LLM earns its cost: not *ranking* (the tag rung and zero-shot
+    reranker both lost to the SBERT base — ADR-0009, ADR-0010), but *explaining* a
+    ranking already produced by a stronger method. Given a query (a seed course's
+    text or a free-text search) and one already-recommended candidate, it returns
+    a short sentence naming the shared topic/skill, for the Phase 8 UI's "why this
+    fits" line.
+
+    Not a ranker, by design
+    -----------------------
+    It is **not** a :class:`Recommender` — it produces no ordering and is never
+    scored by the eval harness or the leaderboard (an explanation has no
+    ground-truth ranking to measure). It is a presentation helper layered on top
+    of whatever rung the UI is showing (ADR-0011).
+
+    Determinism, caching, graceful degradation
+    ------------------------------------------
+    One deterministic Ollama call (``temperature=0``, ``seed=RANDOM_SEED``) per
+    (query, candidate), cached by ``sha1(model + query + candidate-id)`` in
+    ``artifacts/llmcache/<model>/explanations.json``. Because the "why" line is an
+    optional UI nicety, every unavailability path degrades to ``None`` (the UI
+    simply omits the line) rather than raising — so ``fit`` never skips and a cold,
+    offline call is a quiet no-op, not a crash (plan §1).
+    """
+
+    def __init__(
+        self,
+        *,
+        model: str = DEFAULT_LLM_MODEL,
+        host: str = OLLAMA_HOST,
+        candidate_chars: int = 1000,
+        client: OllamaClient | None = None,
+    ) -> None:
+        """Configure the explainer.
+
+        Args:
+            model: Ollama model tag used to explain (and to key the cache).
+            host: Ollama base URL (only used for live explanation).
+            candidate_chars: Truncate the query text and the candidate text to this
+                many chars in the prompt, bounding prompt size on long descriptions.
+            client: Injected client (defaults to a new :class:`OllamaClient`).
+
+        Raises:
+            ValueError: If ``candidate_chars`` is not positive.
+        """
+        if candidate_chars < 1:
+            raise ValueError("candidate_chars must be >= 1")
+        self._client = client or OllamaClient(model=model, host=host)
+        self._text_by_id: dict[str, str] = {}
+        self._title_by_id: dict[str, str] = {}
+        self._cache: _ExplanationCache | None = None
+        self.config = {"model": model, "candidate_chars": candidate_chars}
+        self.name = f"llm_explain({_slug(model)})"
+
+    def fit(self, courses: pd.DataFrame) -> RecommendationExplainer:
+        """Capture candidate texts/titles and open the explanation cache.
+
+        No LLM call happens here — generation is lazy, at :meth:`explain` time.
+
+        Args:
+            courses: Processed catalog (one row per course), indexed by
+                ``course_id`` with ``title`` and ``text`` columns.
+
+        Returns:
+            ``self``, so callers can ``RecommendationExplainer(...).fit(courses)``.
+        """
+        self._cache = _ExplanationCache(f"ollama:{self.config['model']}")
+        text = courses["text"].fillna("")
+        self._text_by_id = {
+            cid: _normalize_text(t) or _normalize_text(cid)
+            for cid, t in zip(courses.index, text, strict=True)
+        }
+        self._title_by_id = {
+            cid: str(courses.loc[cid, "title"] or cid) for cid in courses.index
+        }
+        return self
+
+    def explain(self, query: str, candidate_id: str) -> str | None:
+        """Explain why ``candidate_id`` fits ``query`` (cache, else live, else None).
+
+        Args:
+            query: The seed course's text (item-to-item mode) or a free-text query.
+            candidate_id: An already-recommended course to justify; must exist in
+                the fitted catalog.
+
+        Returns:
+            A one-line justification, or ``None`` when the query is empty, the
+            model returns nothing, or Ollama is unreachable with no cached
+            explanation (the UI then omits the line).
+
+        Raises:
+            RuntimeError: If called before :meth:`fit`.
+            KeyError: If ``candidate_id`` is not in the fitted catalog.
+        """
+        if self._cache is None:
+            raise RuntimeError(f"{self.name}: fit before explaining")
+        if candidate_id not in self._text_by_id:
+            raise KeyError(f"unknown course_id: {candidate_id!r}")
+        normalized = _normalize_text(query)
+        if not normalized:
+            return None
+        key = self._cache.key(normalized, candidate_id)
+        cached = self._cache.get(key)
+        if cached is not None:
+            return cached
+        if not self._client.available():
+            return None
+        chars = self.config["candidate_chars"]
+        try:
+            reason = self._client.explain(
+                normalized[:chars],
+                self._title_by_id[candidate_id],
+                self._text_by_id[candidate_id][:chars],
+            )
+        except LLMUnavailable:
+            logger.warning("%s: explain failed — omitting the line", self.name)
+            return None
+        if not reason:
+            return None
+        self._cache.put(key, reason)
+        self._cache.save()
+        return reason
+
+    def explain_seed(self, seed_id: str, candidate_id: str) -> str | None:
+        """Explain a similar-course recommendation using the seed's own text.
+
+        Convenience wrapper for item-to-item mode: resolves ``seed_id`` to its
+        text and explains ``candidate_id`` against it.
+
+        Args:
+            seed_id: The seed course the recommendation was made from.
+            candidate_id: The recommended course to justify.
+
+        Returns:
+            A one-line justification, or ``None`` (see :meth:`explain`).
+
+        Raises:
+            RuntimeError: If called before :meth:`fit`.
+            KeyError: If either id is not in the fitted catalog.
+        """
+        if seed_id not in self._text_by_id:
+            raise KeyError(f"unknown course_id: {seed_id!r}")
+        return self.explain(self._text_by_id[seed_id], candidate_id)

@@ -5,6 +5,45 @@ Findings as each phase lands. The leaderboard itself
 `python scripts/run_eval.py` and never hand-edited; this file is the
 interpretation.
 
+## Phase 7 / B.8c — "why this fits" explainer (closes Track B.8)
+
+The last B.8 piece (`RecommendationExplainer`, `recommenders/llm.py`) is the one
+the two negative results pointed to. The tag rung (ADR-0009) and the reranker
+(ADR-0010) both tried to make the LLM **rank**, and both lost to a 0.38 M-param
+SBERT bi-encoder already sitting at the recall ceiling. Explanation is a different
+job: the ranking already exists (from SBERT), and the LLM is spent only on
+**justifying** one (query, candidate) pair — a generative task with no
+ground-truth ordering to beat.
+
+So, by design, this is **not a recommender and not on the leaderboard.** It
+returns no `list[Rec]`, is never scored by `eval.py`, and has no metric row —
+scoring a free-text justification against a ranking ground truth would be a
+category error. Quality is assessed by inspection. One deterministic Ollama call
+(qwen3:8b) per pair returns a single sentence under a `{"reason": str}` schema,
+cached by `sha1(model + query + candidate-id)` in `explanations.json`. Because the
+"why" line is *optional* in the UI, every unavailability path (empty query, blank
+reason, Ollama down with no cache) degrades to `None` — the UI simply omits the
+line; only an unknown candidate id raises. Zero new deps (reuses the ADR-0009
+client).
+
+**Validated live (2026-06-20, qwen3:8b)** via `scripts/explain_recs.py` over SBERT
+recommendations, both modes:
+
+- `COMPSCI 189 → STAT C241A` — *"Both courses cover statistical learning theory,
+  classification, regression, clustering, dimensionality reduction, and ensemble
+  methods."*
+- query *"ethics of artificial intelligence" → PHILOS 14* — *"…explores ethical
+  issues in AI, such as algorithmic bias and moral responsibility, aligning with
+  the query's focus…"*
+
+Concrete and on-topic; the cache persists and a repeat pair serves with no call.
+Honest caveats: no automatic quality metric (inspection only — an LLM-as-judge is
+a possible future check, itself needing validation); qwen3:8b-specific output that
+occasionally restates the query rather than naming the *shared* concept; the
+explainer describes a recommendation, it does not certify it. **Track B.8 (LLM
+enrichment) is complete:** tags → reranker → explainer, two negative ranking
+results and one shipped UI helper. See [ADR-0011](adr/0011-llm-explainer.md).
+
 ## Phase 7 / B.8b — zero-shot LLM reranker (measured: does not beat the base)
 
 The reranker (`LLMRerankRecommender`, `recommenders/llm.py`) acts on the tag

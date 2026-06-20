@@ -5,49 +5,50 @@
 
 ## Current state
 
-Phases 0–7b are green: `pytest` = **160 passed**, `ruff`/`black` clean. The Phase 7
-**zero-shot LLM reranker** (`LLMRerankRecommender`) is now **measured** and settled
-as a second documented negative result (joining the tag rung, ADR-0009): it **does
-not beat the SBERT MiniLM base** on either ranking lens.
+Phases 0–7c are green: `pytest` = **170 passed**, `ruff`/`black` clean. **Track B.8
+(LLM enrichment) is complete** — tags → reranker → explainer. The new **Phase 7c
+"why this fits" explainer** (`RecommendationExplainer`, `recommenders/llm.py`) is
+the last B.8 piece and the one the two negative ranking results (tags ADR-0009,
+reranker ADR-0010) pointed to: spend the LLM **justifying** an SBERT ranking, not
+producing one.
 
-| Lens | base NDCG@10 (CI) | reranker NDCG@10 (CI) | Δ | recall@10 |
-|---|---|---|---|---|
-| Cross-listing (1072) | 0.9710 [0.965, 0.977] | 0.9649 [0.957, 0.972] | −0.006 | 1.000 → 0.992 |
-| Judged free-text (44) | 0.6821 [0.615, 0.746] | 0.6559 [0.586, 0.729] | −0.026 | 0.706 → 0.667 |
+By design it is **not a `Recommender` and not on the leaderboard** — a free-text
+justification has no ground-truth ordering to score (ADR-0011). It returns one
+sentence per (query, candidate) pair via one deterministic qwen3:8b call under a
+`{"reason": str}` schema, cached by `sha1(model+query+candidate-id)` in
+`explanations.json`. Because the "why" line is *optional*, every unavailability path
+degrades to `None` (UI omits the line); `fit` never skips. Validated **live**
+(qwen3:8b) via `scripts/explain_recs.py` — concrete on-topic one-liners in both
+item-to-item and free-text modes; cache persists and repeat pairs serve with no
+call. ADR-0011 written; `RESULTS.md`, `TRADEOFFS.md`, `README.md`, CHANGELOG, ADR
+index all synced.
 
-Both deltas are negative and inside the bootstrap CIs (no significant difference);
-recall@10 actually dips. recall@20 is identical base↔reranker (pure reorder) —
-SBERT's top-20 is already near the recall ceiling, so reordering has no headroom and
-only room to hurt (the Phase 4 cross-encoder trap with a zero-shot LLM). Cost ~4 s/
-query on a cold cache (~13000× the base). `reranks.json` is now **warm** (1117
-entries); the suite reruns fully offline and the metric columns are byte-identical
-across cold↔warm runs (reproducibility confirmed). Verdict written into **ADR-0010**;
-`RESULTS.md`, `TRADEOFFS.md`, `README.md`, leaderboards all synced.
-
-**SBERT MiniLM remains the top rung on both ranking lenses.**
+**SBERT MiniLM remains the top rung on both ranking lenses; the LLM's earned role is
+explanation, not ranking.**
 
 ## Next task
 
-Pick one (see Open decisions): **Phase 7c "why this fits"** explanation (the last
-B.8 part — an LLM justification over full candidate text, reusing the warm Ollama
-client + tag/rerank caches), **Phase 8 Streamlit UI**, or a **reranker follow-up**
-sweep (TF-IDF base for real reorder headroom, or qwen3:32b). The reranker rung itself
-is closed — no further measurement needed.
+**Phase 8 Streamlit UI** (recommended) — it surfaces everything built: the
+`Recommender` leaderboard, item-to-item + free-text modes, and the new Phase 7c
+"why this fits" line (already wired and live). Alternative: a **reranker follow-up**
+sweep (TF-IDF base for real reorder headroom, or qwen3:32b) — likely low ROI given
+the near-ceiling SBERT base, and the reranker rung is closed.
 
 ## Open decisions
 
 | Decision | Options | Owner | Due |
 |---|---|---|---|
-| What's next now the reranker is settled | Phase 7c "why this fits" explanations (finish B.8) / Phase 8 Streamlit UI / reranker follow-up (TF-IDF base or qwen3:32b — likely low ROI given the near-ceiling base) | Sandeep | next session |
+| What's next now Track B.8 is complete | Phase 8 Streamlit UI (recommended — surfaces the explainer + leaderboard) / reranker follow-up (TF-IDF base or qwen3:32b — likely low ROI) | Sandeep | next session |
 
 ## Blockers / waiting-on
 
-None. (`reranks.json` is warm, so `run_eval.py` reruns fully offline; Ollama is only
-needed at query time on a *cold* cache or for the future "why this fits" rung.)
+None. The repo runs end-to-end offline; Ollama is only needed at query time to
+generate a *fresh* tag / rerank / explanation (all caches degrade gracefully or
+serve warm).
 
 ## First task for next session
 
-Decide the Open-decisions item, then start it. Recommended: **Phase 7c "why this
-fits"** — it completes Track B.8 and is the one rung that uses the LLM where the
-evidence says its value lives (full candidate text, a justification rather than a
-ranking), and it reuses the already-warm Ollama client and caches.
+Decide the Open-decisions item, then start it. Recommended: **Phase 8 Streamlit UI**
+— three views per plan §4 (Explore with the "why this fits" line, Compare two
+techniques, Leaderboard + UMAP map). The explainer (`RecommendationExplainer`) is
+ready to drop in via `explain_seed` / `explain` on top of the SBERT base.
