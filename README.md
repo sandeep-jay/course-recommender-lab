@@ -79,10 +79,13 @@ graph — with full metrics and bootstrap CIs, written to one-command leaderboar
   ([llm.py](src/courserec/recommenders/llm.py), [ADR-0011](docs/adr/0011-llm-explainer.md)).
 - **Phase 8 — minimal Streamlit UI:** three views — Explore (course or free-text →
   top-k with scores + an opt-in "why this fits" column), Compare (one query, two
-  techniques), Leaderboard (the eval table + UMAP map). A testable, Streamlit-free
-  registry ([app/registry.py](app/registry.py)) feeds a thin view layer
-  ([app/streamlit_app.py](app/streamlit_app.py)); it exposes a fast offline subset
-  of rungs while the full sweep stays in the leaderboard
+  techniques), Leaderboard (the eval table + UMAP map). Testable, Streamlit-free
+  modules — a technique registry ([app/registry.py](app/registry.py)) and an
+  explanatory glossary ([app/glossary.py](app/glossary.py): per-technique blurbs,
+  per-metric definitions, the eval lenses) — feed a thin view layer
+  ([app/streamlit_app.py](app/streamlit_app.py)). The UI exposes a fast offline
+  subset of rungs while the full sweep stays in the leaderboard, with a `family`
+  column and hover-for-definition tooltips so the cryptic rows read clearly
   ([ADR-0012](docs/adr/0012-streamlit-ui.md)).
 
 **Headline:** SBERT MiniLM tops both ranking lenses and beats the best lexical

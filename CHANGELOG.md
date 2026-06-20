@@ -14,6 +14,17 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
     `course_label` (`"<id> — <title>"`, falls back to the bare id on a missing title).
     Curated subset by design (no API/LLM/cross-encoder/graph rungs) — fast, offline,
     no key; the full sweep stays in `scripts/run_eval.py` and the Leaderboard table.
+  - `app/glossary.py` — an **explanatory layer** (same Streamlit-free, tested pattern
+    as the registry) so users running Compare or reading the leaderboard understand
+    what they see: a one-line blurb per exposed technique, a paragraph per *family*
+    (so even leaderboard rows the UI never fits are explained), a definition per
+    leaderboard metric, and the three eval lenses + the leakage guardrail.
+    `family_of`/`family_label` map a raw technique name (`sbert(…)`, `bm25(…)`) to a
+    family; `metric_help` powers the per-column header tooltips. Descriptions stay
+    honest to the findings (e.g. metadata fusion *hurting* cross-listing is stated).
+    Wired in: a blurb under each technique picker (Explore + both Compare columns); a
+    `family` column, hover-for-definition column tooltips, and "How to read this
+    leaderboard" / "Technique families" expanders on the Leaderboard.
   - `app/streamlit_app.py` — three views: **Explore** (course or free-text → top-k
     with scores + an opt-in "why this fits" column), **Compare** (one query, two
     techniques side by side), **Leaderboard** (`results/leaderboard.csv` as a
@@ -22,14 +33,18 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
     why-line reuses `RecommendationExplainer` (ADR-0011) and degrades to `—` when
     Ollama is down. New optional extra `ui` (`streamlit==1.41.1`);
     `pip install -e ".[ui,semantic]"`.
-  - `pyproject.toml` — `ui` extra + `pythonpath = ["."]` so the root-level `app`
-    package imports in tests.
-  - `tests/test_app_registry.py` — 14 new tests (default is registered + first,
-    every factory builds a real `Recommender`, unknown name `KeyError`, label format
-    + missing-title fallback). **184 passed** (was 170); ruff/black clean.
+  - `tests/test_app_registry.py` (14 tests) + `tests/test_app_glossary.py` (16 tests:
+    every exposed technique has a blurb, every real leaderboard name resolves to a
+    known family, every metric column is defined, `family_of` unknown → `"other"`).
+    **200 passed** (was 170); ruff/black clean.
+  - `pyproject.toml` — `ui` extra (`streamlit==1.41.1`) + `pythonpath = ["."]` so the
+    root-level `app` package imports in tests. The Streamlit entrypoint bootstraps
+    the repo root onto `sys.path` so `app.*` package imports resolve under
+    `streamlit run` (which otherwise puts only `app/` on the path).
   - **Validated headlessly** via Streamlit's `AppTest`: query *"practical deep
-    learning"* → `DATA C182` (Deep Neural Networks) top hit; all three views render
-    with no exceptions. ADR-0012.
+    learning"* → `DATA C182` (Deep Neural Networks) top hit; technique blurbs, the
+    leaderboard `family` column, and both glossary expanders render; all three views
+    raise no exceptions. ADR-0012.
 - **Phase 7 / B.8c — "why this fits" explainer (closes Track B.8).** The last B.8
   piece, and the one place the two negative results (tag rung ADR-0009, reranker
   ADR-0010) pointed: not ranking, but *justifying* a ranking SBERT already

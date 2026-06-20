@@ -96,3 +96,20 @@ adds the `ui` extra (`streamlit==1.41.1`) and `pythonpath = ["."]`. Tests:
 `tests/test_app_registry.py` (default is registered + first, every factory builds a
 real `Recommender`, unknown name `KeyError`, label format + missing-title fallback).
 Builds on the explainer in [ADR-0011](0011-llm-explainer.md). **Implements plan §4.**
+
+**Addendum — explanatory glossary layer.** Scores and cryptic technique keys
+(`sbert(all_minilm_l6_v2,idx=flat)`) mean little without context, so a second
+import-safe, Streamlit-free module `app/glossary.py` applies the same
+testable-core pattern as the registry: a one-line blurb per exposed technique, a
+paragraph per *family* (`family_of`/`family_label` map any raw leaderboard name to a
+family, so even rows the UI never fits are explained), a definition per leaderboard
+metric (`metric_help`, powering per-column header tooltips), and the three eval
+lenses + the leakage guardrail. Descriptions stay honest to the findings (e.g.
+metadata fusion *hurting* the cross-listing target is stated). Wired into Explore and
+both Compare columns (a picker blurb) and the Leaderboard (a `family` column,
+hover-for-definition tooltips, and "How to read this leaderboard" / "Technique
+families" expanders). Tested by `tests/test_app_glossary.py` — every exposed
+technique has a blurb, every real leaderboard name resolves to a known family, every
+metric column is defined. This is the same decision (an import-safe core under unit
+test + a thin Streamlit view), not a new one, so it extends this ADR rather than
+opening another.

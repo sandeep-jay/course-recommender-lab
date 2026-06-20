@@ -19,19 +19,38 @@ when one is absent.
 
 from __future__ import annotations
 
-import pandas as pd
-import streamlit as st
+import sys
+from pathlib import Path
 
-from app.registry import (
+# `streamlit run app/streamlit_app.py` puts this file's own dir (app/) on sys.path,
+# not the repo root, so the `app` package isn't importable. Put the repo root first
+# (pytest does the equivalent via `pythonpath` in pyproject).
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
+import pandas as pd  # noqa: E402
+import streamlit as st  # noqa: E402
+
+from app.glossary import (  # noqa: E402
+    FAMILIES,
+    FAMILY_DESCRIPTIONS,
+    LEAKAGE_NOTE,
+    LENSES,
+    TECHNIQUE_INFO,
+    family_label,
+    metric_help,
+)
+from app.registry import (  # noqa: E402
     DEFAULT_TECHNIQUE,
     course_label,
     make_recommender,
     technique_names,
 )
-from courserec.config import PLOTS_DIR, RESULTS_DIR
-from courserec.data import load_processed
-from courserec.interfaces import Rec, Recommender
-from courserec.recommenders.llm import RecommendationExplainer
+from courserec.config import PLOTS_DIR, RESULTS_DIR  # noqa: E402
+from courserec.data import load_processed  # noqa: E402
+from courserec.interfaces import Rec, Recommender  # noqa: E402
+from courserec.recommenders.llm import RecommendationExplainer  # noqa: E402
 
 LEADERBOARD_CSV = RESULTS_DIR / "leaderboard.csv"
 EMBEDDING_MAP_PNG = PLOTS_DIR / "embedding_map.png"
@@ -141,6 +160,52 @@ def _query_controls(key: str) -> tuple[str | None, str]:
     return None, query
 
 
+def _technique_blurb(name: str) -> None:
+    """Render the one-line plain-language description for a technique, if any."""
+    info = TECHNIQUE_INFO.get(name)
+    if info:
+        st.caption(info)
+
+
+def _column_config(columns) -> dict:
+    """Build per-column header tooltips for the leaderboard table.
+
+    Args:
+        columns: The leaderboard DataFrame's column names.
+
+    Returns:
+        A Streamlit ``column_config`` mapping each known metric column to a help
+        tooltip (hover the header); columns with no glossary entry are omitted.
+    """
+    config = {
+        col: st.column_config.Column(help=help_text)
+        for col in columns
+        if (help_text := metric_help(col)) is not None
+    }
+    config["family"] = st.column_config.Column(
+        help="Technique family — definitions in “Technique families” below."
+    )
+    return config
+
+
+def _leaderboard_glossary(columns) -> None:
+    """Render the lenses / metrics / families explainers below the table."""
+    with st.expander("How to read this leaderboard"):
+        st.markdown("**Three evaluation lenses** — no single one is sufficient:")
+        for title, desc in LENSES:
+            st.markdown(f"- **{title}.** {desc}")
+        st.caption(LEAKAGE_NOTE)
+        st.markdown("**Metrics** (the same text appears on each column's header):")
+        for col in columns:
+            help_text = metric_help(col)
+            if help_text and col != "config":
+                st.markdown(f"- **`{col}`** — {help_text}")
+    with st.expander("Technique families"):
+        for key, label in FAMILIES.items():
+            if key != "other":
+                st.markdown(f"- **{label}** — {FAMILY_DESCRIPTIONS[key]}")
+
+
 # --- views ------------------------------------------------------------------
 
 
@@ -155,6 +220,7 @@ def _view_explore() -> None:
         "Technique", names, index=names.index(DEFAULT_TECHNIQUE), key="explore_tech"
     )
     k = col_k.slider("k", 1, _MAX_K, 10, key="explore_k")
+    _technique_blurb(technique)
     want_why = st.checkbox(
         "Explain why each fits (local LLM — needs Ollama)", key="explore_why"
     )
@@ -195,9 +261,13 @@ def _view_compare() -> None:
     names = technique_names()
     col_a, col_b = st.columns(2)
     tech_a = col_a.selectbox("Technique A", names, index=0, key="compare_a")
+    with col_a:
+        _technique_blurb(tech_a)
     tech_b = col_b.selectbox(
         "Technique B", names, index=min(1, len(names) - 1), key="compare_b"
     )
+    with col_b:
+        _technique_blurb(tech_b)
     k = st.slider("k", 1, _MAX_K, 10, key="compare_k")
 
     if seed_id is None and not query.strip():
@@ -222,12 +292,19 @@ def _view_leaderboard() -> None:
     st.subheader("Leaderboard")
     if LEADERBOARD_CSV.exists():
         board = pd.read_csv(LEADERBOARD_CSV)
+        board.insert(1, "family", board["name"].map(family_label))
         st.caption(
-            f"{len(board)} technique×config rows from `{LEADERBOARD_CSV.name}` — "
-            "click a column header to sort. Regenerate with "
-            "`python scripts/run_eval.py`."
+            f"{len(board)} technique×config rows from `{LEADERBOARD_CSV.name}`, "
+            "sorted by NDCG@10 — click any column header to re-sort, hover a header "
+            "for its definition. Regenerate with `python scripts/run_eval.py`."
         )
-        st.dataframe(board, use_container_width=True, hide_index=True)
+        st.dataframe(
+            board,
+            use_container_width=True,
+            hide_index=True,
+            column_config=_column_config(board.columns),
+        )
+        _leaderboard_glossary(board.columns)
     else:
         st.warning(
             "No leaderboard yet — run `python scripts/run_eval.py` to generate "
