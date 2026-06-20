@@ -74,22 +74,32 @@ deterministic. The same machinery unblocks the deferred pieces — the `nomic-em
 model already pulled locally can later back an Ollama-embedding rung, and the
 zero-shot reranker + "why this fits" reuse this client and cache.
 
-**Negative / honest finding — the headline number is confounded by partial
-enrichment.** On the subset-enriched run `llm_tags(qwen3_8b)` beats *every* lexical
-baseline on *both* lenses — cross-listing NDCG@10 **0.960** (vs tfidf 0.955, behind
-only the two SBERT models at ~0.971) and free-text **0.585** (vs tfidf 0.461,
-behind only SBERT/rerank). That looks like a win, but only **1,390 / 11,073
-courses (12.5%)** are enriched, and those are exactly the eval *targets*
-(cross-listing seeds+twins + judged gold). Targets therefore live in tag-vocabulary
-space while ~87% of *distractors* remain in raw-text space, so the two are
-artificially easy to separate. A real share of the lift is this
-vocabulary-separation artifact, not the LLM's semantic quality. The clean
-experiment — `scripts/enrich_catalog.py --all` (full catalog, multi-hour) — is the
-documented next step; the leaderboards carry a "Partial LLM enrichment" note so the
-number is not misread, and the expected direction still holds (the free-text lens,
-where the query is itself enriched to tags, is where genuine normalization payoff
-should survive full enrichment). The rung is also only as good as qwen3:8b's
-extraction.
+**Negative / honest finding — full enrichment overturns the provisional win; the
+rung is not competitive.** The subset-enriched run (12.5%) had `llm_tags(qwen3_8b)`
+beating *every* lexical baseline on both lenses (cross-list 0.960, free-text
+0.585). We then ran `scripts/enrich_catalog.py --all` (full catalog, ~5 h, cached)
+to enrich the distractors too — exactly to test that number — and the verdict
+flips:
+
+| Lens | partial (12.5%) | **full (100%)** | tfidf baseline |
+|---|---|---|---|
+| cross-listing NDCG@10 | 0.960 | **0.957** (tied with lexical, mid-pack) | 0.955 |
+| free-text NDCG@10 | 0.585 | **0.404** (*below* tfidf) | 0.461 |
+
+So the apparent lift was almost entirely the **target/distractor
+vocabulary-separation artifact**: with only the eval targets in tag space they were
+trivially separable from raw-text distractors; once everything is tag space, the
+cross-listing edge vanishes (twins share near-identical tags just as they share
+near-identical text) and the free-text number drops *below* plain TF-IDF. The
+mechanism is information loss: compressing a 50–200-term description into ~6–12
+abstract tags discards discriminative detail that TF-IDF exploits, and the tag
+vocabulary saturates at 11k courses — the loss outweighs the synonym-normalization
+the LLM adds. Extraction quality was never the issue (spot checks are clean); the
+*architecture* — lossy distillation then lexical matching — is. The boards now
+carry an "LLM enrichment (full)" note (the number is comparable, no caveat). The
+takeaway: the LLM's value lives in operations over the *full* candidate text (the
+deferred zero-shot reranker and "why this fits"), not in tag distillation — and
+running `--all` before believing the win was the whole point.
 
 **Neutral:** qwen3:8b and the profile composition (topics+skills+prereqs, TF-IDF)
 are chosen defaults, not tuned; model size and profile design are obvious future

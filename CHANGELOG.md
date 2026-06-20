@@ -5,6 +5,20 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ## [Unreleased]
 
+### Changed
+- **Phase 7 — full-catalog enrichment overturns the LLM tag rung's provisional
+  win.** Ran `scripts/enrich_catalog.py --all` (qwen3:8b, 8,535 fresh generations,
+  ~5 h, cached/resumable) → **100% catalog coverage** (10,900/11,073 non-empty).
+  Re-running the eval de-confounds the rung: cross-listing NDCG@10 0.960 → **0.957**
+  (now tied with the lexical cluster, mid-pack) and free-text 0.585 → **0.404**
+  (now *below* tfidf 0.461). The subset-run lift was the target/distractor
+  vocabulary-separation artifact; distilling a description to ~6–12 tags loses more
+  discriminative signal than the LLM's synonym-normalization adds. RESULTS Phase 7
+  + ADR-0009 rewritten with the corrected (negative) verdict.
+- **`scripts/run_eval.py`** — `_llm_coverage_note` is now coverage-adaptive: at
+  ≥95% catalog coverage the boards show an "LLM enrichment (full): comparable" note
+  instead of the "Partial LLM enrichment" artifact caveat.
+
 ### Added
 - **Phase 7 / B.8 — LLM enrichment via local Ollama (tag-extraction rung).**
   - `src/courserec/recommenders/llm.py` — `LLMTagRecommender`: a local LLM

@@ -5,44 +5,42 @@
 
 ## Current state
 
-Phases 0–7a are green: metadata fusion (Phase 5/B.5) and the **LLM tag-extraction
-rung (Phase 7/B.8, part a)** both land on the leaderboards, with `pytest` = **148
-passed** and `ruff`/`black` clean. The LLM rung
-(`src/courserec/recommenders/llm.py`, `LLMTagRecommender`) ranks by TF-IDF cosine
-over **local-Ollama** (qwen3:8b, no key, stdlib `urllib`, zero new deps) tag
-profiles; `fit` only reads a cache that the resumable `scripts/enrich_catalog.py`
-pass fills. First result: it tops every lexical baseline on both lenses (cross-list
-0.960, free-text 0.585) **but only 1,390/11,073 courses (12.5%, the eval targets)
-are enriched**, so the cross-listing number is confounded by target/distractor
-vocabulary separation (leaderboards carry a "Partial LLM enrichment" note;
-ADR-0009). The free-text win (query enriched live → tag normalization) is the
-trustworthy signal.
+Phases 0–7a are green with `pytest` = **148 passed**, `ruff`/`black` clean. The
+catalog is now **100% LLM-enriched** (qwen3:8b tags cached for 10,900/11,073
+courses) and the de-confounded result is settled: with the full catalog enriched
+the LLM tag rung (`recommenders/llm.py`) is **not competitive** — it ties lexical
+on cross-listing (0.957) and falls *below* plain TF-IDF on free text (0.404 vs
+0.461); the earlier subset-run "win" (0.960/0.585) was a target/distractor
+vocabulary-separation artifact, and distilling a description to ~6–12 tags loses
+more signal than the LLM's normalization adds (ADR-0009, RESULTS Phase 7). SBERT
+MiniLM still tops both ranking lenses. The 100% tag cache is reusable by the
+deferred LLM reranker + "why this fits" UI.
 
 ## Next task
 
-De-confound the LLM tag rung: with `ollama serve` up, run
-`python scripts/enrich_catalog.py --all` (full ~11k catalog, multi-hour,
-resumable, cached) then `python scripts/run_eval.py` — this enriches the
-distractors too, removing the target/distractor vocabulary-separation artifact, so
-`llm_tags(qwen3:8b)`'s cross-listing number becomes comparable to the other rungs.
-Update RESULTS Phase 7 + ADR-0009 with the clean figure.
+Build the Phase 7 **zero-shot LLM reranker** (`recommenders/llm.py`, plan §2.8b):
+a `LLMRerankRecommender` that retrieves top-N (SBERT or TF-IDF), then reorders the
+candidates with a single deterministic Ollama call over their **full text** (not
+tags), reusing `OllamaClient`; cache the rerank by `sha1(model+query+candidate-ids)`,
+degrade gracefully when Ollama is down (fall back to the base order), contract-test
+with the `FakeClient` pattern, wire into `run_eval`, and write an ADR for the
+rerank-prompt + caching design.
 
 ## Open decisions
 
 | Decision | Options | Owner | Due |
 |---|---|---|---|
-| Next Phase-7 step | Full-catalog enrichment to de-confound the tag rung / build the zero-shot reranker + "why this fits" / start Phase 8 Streamlit UI | Sandeep | next session |
+| Next rung after the LLM reranker | "Why this fits" explanations + LLM-as-judge (finish Phase 7 b/c) / start Phase 8 Streamlit UI / try a bigger model (qwen3:32b) on the reranker | Sandeep | next session |
 
 ## Blockers / waiting-on
 
-None. (LLM rung needs `ollama serve` up + `qwen3:8b` pulled for enrichment; eval
-runs fine offline against the warm cache.)
+None. (The LLM reranker needs `ollama serve` up + `qwen3:8b` at query time; the
+tag cache is already 100% warm and the rest of the suite runs fully offline.)
 
 ## First task for next session
 
-Decide between full-catalog enrichment (`enrich_catalog.py --all`, the clean
-confirmation) and building the zero-shot reranker. If the reranker: add a
-`LLMRerankRecommender` that retrieves top-N with SBERT/TF-IDF then reorders with a
-single Ollama call (cached, deterministic), reusing `OllamaClient`; degrade
-gracefully when Ollama is down; contract test with the `FakeClient` pattern; wire
-into `run_eval`; ADR for the rerank-prompt + caching design.
+Scaffold `LLMRerankRecommender` in `src/courserec/recommenders/llm.py`: retrieve
+top-N with the MiniLM SBERT base, reorder via one deterministic Ollama call over
+the candidates' full text, cache by `sha1(model+query+candidate-ids)`, fall back to
+the base order when Ollama is down, add `FakeClient` contract tests, and wire it
+into `scripts/run_eval.py`.

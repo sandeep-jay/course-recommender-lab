@@ -217,20 +217,37 @@ def _skip_note(label: str, names: list[str], reason: str) -> tuple[str, ...]:
     return (f"**{label} ({len(names)}):** {listed} — {reason}.",)
 
 
+#: At/above this catalog-coverage fraction the LLM rung is treated as full
+#: enrichment (its number is comparable to the other rungs); below it, the boards
+#: carry the partial-enrichment / vocabulary-separation caveat instead.
+_LLM_FULL_COVERAGE = 0.95
+
+
 def _llm_coverage_note(
     fitted: list[tuple[Recommender, float]], n_total: int
 ) -> tuple[str, ...]:
-    """Flag partial LLM enrichment on the leaderboard (empty if no LLM rung ran).
+    """Report LLM enrichment coverage on the leaderboard (empty if no LLM rung ran).
 
-    The LLM rung's eval *targets* are enriched but most *distractors* are not, so a
-    chunk of its lift over lexical is a vocabulary-separation artifact, not pure
-    semantic quality. Surfacing the coverage on the board itself keeps that from
-    being misread (plan §6 honest-eval discipline).
+    Below ``_LLM_FULL_COVERAGE`` the rung's eval *targets* are enriched but most
+    *distractors* are not, so a chunk of any lift over lexical is a
+    vocabulary-separation artifact, not semantic quality — the board flags that.
+    At/above it the catalog is (near-)fully enriched, so the number is comparable
+    and the note just records coverage (plan §6 honest-eval discipline).
     """
     notes: list[str] = []
     for rec, _ in fitted:
-        if isinstance(rec, LLMTagRecommender):
-            pct = 100.0 * rec._n_enriched / n_total if n_total else 0.0
+        if not isinstance(rec, LLMTagRecommender):
+            continue
+        frac = rec._n_enriched / n_total if n_total else 0.0
+        pct = 100.0 * frac
+        if frac >= _LLM_FULL_COVERAGE:
+            notes.append(
+                f"**LLM enrichment (full):** `{rec.name}` has tags for "
+                f"{rec._n_enriched}/{n_total} courses ({pct:.0f}%) — the catalog is "
+                "(near-)fully enriched, so its number is comparable to the other "
+                "rungs (no target/distractor vocabulary-separation artifact)."
+            )
+        else:
             notes.append(
                 f"**Partial LLM enrichment:** `{rec.name}` has tags for "
                 f"{rec._n_enriched}/{n_total} courses ({pct:.0f}%, the eval-relevant "

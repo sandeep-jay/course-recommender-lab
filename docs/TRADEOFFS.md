@@ -18,7 +18,7 @@ numbers see [RESULTS.md](RESULTS.md) and the
 | **Rerank** (SBERT retrieve → `ms-marco-MiniLM` cross-encoder → MMR) | Did **not** beat the bi-encoder here (xlist 0.960, text 0.610 at λ=1.0 vs MiniLM 0.971/0.682) — domain-mismatched reranker, twins already rank first | Query ~70–80 ms (50 cross-encoder passes) — slowest by far | Low — cross-encoder logit + MMR trade-off score | None at query (local); torch dep | Fine — reuses base retriever | High (two stages + MMR) | You need a **diversity knob** (MMR λ moves intra-list diversity), or a domain-tuned cross-encoder is available; not for raw relevance on this catalog |
 | **Graph (PPR)** (RWR over cross-listing + subject/dept aux nodes) | **Far below text** on held-out twins (NDCG@10 0.131 vs SBERT 0.913) — recovers only ~23%; isolated twin pairs are unrecoverable once their edge is withheld | Fit < 0.05 s; query ~0.4 ms (meta=off) / ~2.6 ms (meta=on) | Medium — proximity is a walk over an inspectable graph | None (local); **zero new deps** (pure `scipy.sparse`) | Poor — needs cross-listing edges; a course with none gets nothing | Medium (graph build + power-iteration RWR) | Edges encode signal **absent from text** (prereqs, sequence, co-enrollment) — *not* this catalog, where twin text is near-identical |
 | **Metadata fusion** (one-hot subject+dept+level+units ⊕ TF-IDF, weight λ) | **Loses** to plain TF-IDF, monotone in λ (xlist 0.948→0.936→0.909 vs tfidf 0.955) — 99.7% of twins span subjects, so the facet block pushes them apart; text-lens identical to TF-IDF (a query has no facets) | Fit ~0.4 s; query ~ms (sparse mat-vec) | High — facet indicators + TF-IDF terms, both readable | None (local) | Fine — text + facets; sparse-text rows ride on metadata | Medium (per-block L2-norm + weighted hstack) | Browse/filter coherence ("more grad ME courses like this") — *not* the cross-listing target, which it actively hurts |
-| **LLM tags** (Ollama qwen3:8b → topics/skills/prereqs, TF-IDF cosine) | Tops every lexical baseline on both lenses (xlist 0.960, text 0.585) **but confounded** — only 12.5% (the eval targets) enriched, so part of the lift is target/distractor vocabulary separation; the free-text win (live query normalization) is the trustworthy part | Enrich ~5 s/course (one-time, cached, resumable); fit reads cache (fast); query ~ms + 1 Ollama call for text | High — tags are human-readable topics/skills | None (local Ollama, **no API key, zero new deps** via stdlib `urllib`) | Poor for un-enriched courses (raw-text fallback); needs an enrichment pass | Medium–high (HTTP client + tag cache + enrich pass) | Free-text/conceptual matching where synonymy normalization helps, **and** you have local LLM compute; run `enrich_catalog.py --all` to de-confound |
+| **LLM tags** (Ollama qwen3:8b → topics/skills/prereqs, TF-IDF cosine) | **Not competitive at full (100%) enrichment:** ties lexical on xlist (0.957) and *below* tfidf on text (0.404 vs 0.461) — distilling a description to ~6–12 tags loses more detail than synonym-normalization adds; the subset-run "win" (0.960/0.585) was a vocabulary-separation artifact | Enrich ~5 s/course (one-time, cached, resumable; full catalog ~5 h); fit reads cache (fast); query ~ms + 1 Ollama call for text | High — tags are human-readable topics/skills | None (local Ollama, **no API key, zero new deps** via stdlib `urllib`) | Poor for un-enriched courses (raw-text fallback); needs an enrichment pass | Medium–high (HTTP client + tag cache + enrich pass) | Not as a ranker here — the cached tags' value is for the (future) reranker + "why this fits" UI, which use the *full* text, not lossy distillation |
 
 ## Notes by dimension
 
@@ -108,9 +108,12 @@ numbers see [RESULTS.md](RESULTS.md) and the
   ranks by TF-IDF cosine over the tag profile with raw-text fallback. `fit` only
   *reads* a cache that the resumable `scripts/enrich_catalog.py` pass fills, so
   evaluation stays fast and the repo's offline guarantee holds (skips+flags when
-  Ollama is down and nothing is cached). First result tops every lexical baseline
-  (xlist 0.960, text 0.585) **but only the 12.5% eval-target subset is enriched**,
-  so the cross-listing lift is partly a vocabulary-separation artifact (boards
-  carry a "Partial LLM enrichment" note); the live-enriched free-text win is the
-  trustworthy signal. `enrich_catalog.py --all` is the clean-confirmation step;
-  see [ADR-0009](adr/0009-llm-enrichment-ollama.md).
+  Ollama is down and nothing is cached). The subset run (12.5%) looked like a win
+  on both lenses (xlist 0.960, text 0.585); **full-catalog enrichment overturned
+  it** — at 100% coverage llm_tags ties lexical on cross-listing (0.957) and falls
+  *below* plain TF-IDF on free text (0.404). The subset lift was a target/distractor
+  vocabulary-separation artifact, and distilling text to a handful of tags loses
+  more discriminative signal than the LLM's normalization recovers. The honest
+  verdict: not competitive as a ranker — the value of the 100% tag cache is for the
+  future reranker + "why this fits" UI, which use the full candidate text. See
+  [ADR-0009](adr/0009-llm-enrichment-ollama.md).

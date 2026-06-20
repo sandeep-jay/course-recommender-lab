@@ -72,13 +72,15 @@ near-identical twin text gives content methods everything
 ([ADR-0006](docs/adr/0006-graph-heldout.md)); the embedding space is a smooth
 manifold, not tidy clusters ([ADR-0007](docs/adr/0007-clustering-diagnostic.md));
 metadata fusion *hurts* the cross-listing target because 99.7% of twins span
-subjects ([ADR-0008](docs/adr/0008-metadata-fusion.md)); and the LLM tag rung tops
-every lexical baseline (xlist 0.960, text 0.585) but on only the 12.5% eval-target
-subset, so its lift is partly a partial-enrichment artifact pending a full-catalog
-run ([ADR-0009](docs/adr/0009-llm-enrichment-ollama.md)). See
+subjects ([ADR-0008](docs/adr/0008-metadata-fusion.md)); and the LLM tag rung
+*looked* like it beat every lexical baseline on the 12.5% eval-target subset, but
+**full-catalog (100%) enrichment overturned it** — at full coverage it ties lexical
+on cross-listing (0.957) and falls *below* plain TF-IDF on free text (0.404),
+because distilling a description to ~6–12 tags loses more signal than the LLM's
+normalization adds ([ADR-0009](docs/adr/0009-llm-enrichment-ollama.md)). See
 [docs/RESULTS.md](docs/RESULTS.md) and [docs/TRADEOFFS.md](docs/TRADEOFFS.md).
-Next: full-catalog LLM enrichment to de-confound, then the zero-shot reranker +
-"why this fits" (Phase 7 b/c). The swappable `Recommender` interface is in
+Next: the zero-shot LLM reranker + "why this fits" over full candidate text
+(Phase 7 b/c). The swappable `Recommender` interface is in
 [src/courserec/interfaces.py](src/courserec/interfaces.py).
 
 See [CHANGELOG.md](CHANGELOG.md) for history and [docs/adr/](docs/adr/) for

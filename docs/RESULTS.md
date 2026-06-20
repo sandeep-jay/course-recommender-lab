@@ -15,57 +15,68 @@ course not yet enriched. Enrichment is a separate, cached, resumable pass
 (`scripts/enrich_catalog.py`) so `fit` only reads the cache and the eval stays
 fast. See [ADR-0009](adr/0009-llm-enrichment-ollama.md).
 
-### Headline — beats every lexical baseline on both lenses… with an asterisk
+### Headline — full enrichment overturns it: distillation is *not* competitive
+
+The catalog is now **100% enriched** (10,900/11,073 courses carry non-empty tags;
+the rest are genuinely text-free). That removes the target/distractor
+vocabulary-separation confound — and the verdict flips.
 
 | Technique | Cross-list NDCG@10 | 95% CI | Free-text NDCG@10 | 95% CI |
 |---|---|---|---|---|
 | sbert (MiniLM) | 0.9710 | [0.965, 0.976] | 0.6821 | [0.613, 0.747] |
-| **llm_tags (qwen3:8b)** | **0.9603** | **[0.952, 0.967]** | **0.5847** | **[0.503, 0.662]** |
+| best bm25 / tfidf-bigram | ~0.958 | [0.951, 0.966] | ~0.49 | [0.41, 0.57] |
+| **llm_tags (qwen3:8b) — full** | **0.9569** | **[0.950, 0.965]** | **0.4041** | **[0.327, 0.468]** |
 | tfidf (unigram, baseline) | 0.9553 | [0.947, 0.964] | 0.4607 | [0.388, 0.524] |
-| best bm25 | 0.9582 | [0.951, 0.966] | 0.4923 | [0.413, 0.566] |
+| _llm_tags — partial (12.5%), for contrast_ | _0.9603_ | _[0.952, 0.967]_ | _0.5847_ | _[0.503, 0.662]_ |
 
-On the subset-enriched run the LLM rung outranks **all** lexical and topic
-baselines on the primary cross-listing lens (0.960 vs tfidf 0.955, behind only the
-two SBERT models) and, more strikingly, lifts the free-text lens to **0.585** —
-+0.12 NDCG@10 over the best lexical method, behind only SBERT and the SBERT-based
-reranker.
+- **Cross-listing:** llm_tags falls to **0.957** — statistically tied with the
+  lexical cluster (its CI overlaps tfidf/bm25), mid-pack. Distillation neither
+  helps nor hurts twin recovery: twins share near-identical text, so they share
+  near-identical tags, exactly like lexical.
+- **Free-text:** llm_tags **drops to 0.404 — *below* plain TF-IDF (0.461)**, recall
+  0.55 → 0.38. The provisional "+0.12 over lexical" was almost entirely the
+  partial-enrichment artifact; with distractors in the same tag space the apparent
+  win evaporates and reverses.
 
-### The asterisk — partial enrichment confounds the comparison
+### Why distill-to-tags loses (the honest mechanism)
 
-Only **1,390 of 11,073 courses (12.5%)** are enriched, and by construction those
-are exactly the eval *targets* (cross-listing seeds + twins + judged gold; the
-"eval-relevant subset"). So the targets occupy tag-vocabulary space while ~87% of
-*distractors* still sit in raw-text space — and two different vocabularies are
-trivially easy to separate. **A real share of the lift is this vocabulary-separation
-artifact, not the model's semantic quality.** The leaderboards carry a "Partial LLM
-enrichment" note so the number is not read as a clean win.
+Compressing a rich 50–200-term description into ~6–12 abstract tags **throws away
+discriminative detail that raw TF-IDF exploits**, and the loss outweighs the
+synonym-normalization the LLM adds:
 
-What is *probably* genuine, and should survive full enrichment:
-
-1. **The free-text lens.** Here the query itself is enriched to tags at request
-   time and matched against course tags, so the win is normalization (synonyms →
-   one canonical topic; "ML" and "machine learning" collapse), the exact thing
-   lexical can't do — not just target/distractor vocabulary split. This is the
-   expected payoff and the most trustworthy signal in the table.
-2. **Tag quality is real.** Spot checks are clean and discriminative (e.g.
-   AEROENG C124 → `composite materials, mechanical properties, aircraft
-   structures, nanocomposites`), so the features are sound; the open question is
-   purely the eval confound, not the extraction.
+1. **The tag vocabulary saturates at catalog scale.** Across 11k courses many share
+   generic tags ("machine learning", "data analysis", "research methods"), so the
+   profiles stop discriminating — fine for separating a handful of targets from
+   raw-text distractors (the partial run), useless for ranking gold among 11k
+   tag-profiles (the full run).
+2. **Query/corpus tag surface forms don't always align.** A free-text query is
+   enriched to *its own* tags, which need not match the course tags lexically
+   ("deep learning" query vs "neural networks" course tag), so tag-to-tag overlap
+   is *less* reliable than raw term overlap on this paraphrase-extreme judged set.
+3. **Extraction quality was never the problem.** Spot checks are clean (AEROENG
+   C124 → `composite materials, mechanical properties, aircraft structures,
+   nanocomposites`). The features are sound; the *architecture* — lossy distillation
+   then lexical matching — is what doesn't pay off.
 
 ### What this says / next step
 
-- **Don't crown it yet.** The honest read is "promising, beats lexical, but the
-  headline cross-listing number is inflated by partial enrichment." The clean
-  experiment is `python scripts/enrich_catalog.py --all` (full catalog, a
-  multi-hour one-time pass) followed by a re-run; that removes the
-  target/distractor vocabulary split and gives a number comparable to the other
-  rungs. Deferred deliberately — Phase 7 was scoped "subset first" (plan §5).
-- **Local, keyless, zero-cost, zero new dependencies.** The whole rung runs on
-  Ollama over stdlib `urllib`; the repo's offline guarantee is untouched, and the
-  rung skips+flags (never hard-fails) when Ollama is down and nothing is cached.
-- **Still to build in Phase 7:** the zero-shot LLM reranker over candidate sets
-  and the "why this fits" explanation for the UI (plan §2.8 b/c), plus the
-  LLM-as-judge validation of the free-text lens (plan §3).
+- **Honest verdict: the tag-distillation rung is not competitive.** It ties lexical
+  on cross-listing and underperforms plain TF-IDF on free text. Running the full
+  catalog (`enrich_catalog.py --all`) was the point — it converted a
+  promising-but-confounded number into a clean negative, which is the result that
+  belongs on the leaderboard (boards now carry an **"LLM enrichment (full)"** note,
+  no longer the partial caveat). A textbook case for *why* you de-confound before
+  believing a win.
+- **The LLM's value, if any, is elsewhere.** Not in compressing text to tags and
+  matching lexically, but in operations that use the *full* candidate text: the
+  **zero-shot reranker** (judge candidate pairs directly) and the **"why this
+  fits"** explanation (plan §2.8 b/c), plus **LLM-as-judge** validation of the
+  free-text lens (plan §3). Those are the next builds.
+- **Still local, keyless, zero-cost, zero new dependencies.** The rung runs on
+  Ollama over stdlib `urllib`; the offline guarantee is untouched, and it
+  skips+flags (never hard-fails) when Ollama is down and nothing is cached. The
+  100% tag cache is reusable by the reranker and the UI regardless of this rung's
+  ranking verdict.
 
 ## Phase 6 — clustering + 2-D map over the SBERT embeddings (diagnostic)
 
