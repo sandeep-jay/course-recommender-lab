@@ -6,6 +6,30 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 ## [Unreleased]
 
 ### Added
+- **Phase 8 — minimal Streamlit UI (plan §4).** Surfaces every prior phase from one
+  `streamlit run`: the techniques, the Phase 7c explainer, and the full leaderboard.
+  - `app/registry.py` — the import-safe, **Streamlit-free** core: `TECHNIQUE_FACTORIES`
+    (six representative offline rungs — SBERT MiniLM (default), SBERT MPNet, TF-IDF,
+    BM25, LSA, Metadata+text), `make_recommender` (`KeyError` on unknown),
+    `course_label` (`"<id> — <title>"`, falls back to the bare id on a missing title).
+    Curated subset by design (no API/LLM/cross-encoder/graph rungs) — fast, offline,
+    no key; the full sweep stays in `scripts/run_eval.py` and the Leaderboard table.
+  - `app/streamlit_app.py` — three views: **Explore** (course or free-text → top-k
+    with scores + an opt-in "why this fits" column), **Compare** (one query, two
+    techniques side by side), **Leaderboard** (`results/leaderboard.csv` as a
+    sortable table + the Phase 6 UMAP map). Catalog, each fitted technique, and the
+    explainer are `st.cache_resource`-cached, so interactions never re-fit; the
+    why-line reuses `RecommendationExplainer` (ADR-0011) and degrades to `—` when
+    Ollama is down. New optional extra `ui` (`streamlit==1.41.1`);
+    `pip install -e ".[ui,semantic]"`.
+  - `pyproject.toml` — `ui` extra + `pythonpath = ["."]` so the root-level `app`
+    package imports in tests.
+  - `tests/test_app_registry.py` — 14 new tests (default is registered + first,
+    every factory builds a real `Recommender`, unknown name `KeyError`, label format
+    + missing-title fallback). **184 passed** (was 170); ruff/black clean.
+  - **Validated headlessly** via Streamlit's `AppTest`: query *"practical deep
+    learning"* → `DATA C182` (Deep Neural Networks) top hit; all three views render
+    with no exceptions. ADR-0012.
 - **Phase 7 / B.8c — "why this fits" explainer (closes Track B.8).** The last B.8
   piece, and the one place the two negative results (tag rung ADR-0009, reranker
   ADR-0010) pointed: not ranking, but *justifying* a ranking SBERT already

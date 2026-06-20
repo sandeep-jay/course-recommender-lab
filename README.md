@@ -27,18 +27,21 @@ python scripts/enrich_catalog.py # Phase 7: LLM-tag the eval subset via Ollama (
 python scripts/run_eval.py       # fit + score all techniques -> results/leaderboard.{md,csv}
 python scripts/run_clustering.py # Phase 6 diagnostic -> results/cluster_report.md + plots/
 python scripts/explain_recs.py --seed "COMPSCI 189"  # Phase 7c: "why this fits" lines via Ollama
+streamlit run app/streamlit_app.py  # Phase 8 UI: Explore / Compare / Leaderboard
 pytest                           # tests
 ruff check . && black .          # lint / format
 ```
 
 The semantic rung needs `pip install -e ".[semantic]"`; the Phase 6 map needs
-`".[viz]"` (matplotlib; UMAP optional — t-SNE fallback otherwise). The Phase 7 LLM
-rung needs a local [Ollama](https://ollama.com) daemon + a pulled model (no API
-key, no extra Python deps); `run_eval` skips it gracefully when Ollama is absent.
+`".[viz]"` (matplotlib; UMAP optional — t-SNE fallback otherwise); the Phase 8 UI
+needs `".[ui,semantic]"`. The Phase 7 LLM rung needs a local
+[Ollama](https://ollama.com) daemon + a pulled model (no API key, no extra Python
+deps); `run_eval` skips it gracefully when Ollama is absent, and the UI's opt-in
+"why this fits" column simply stays blank.
 
 ## Status
 
-**Phases 0–7 (tag rung) — complete.** On the Phase 0 pipeline (cleaned catalog of 11,073
+**Phases 0–8 — complete.** On the Phase 0 pipeline (cleaned catalog of 11,073
 unique courses), the techniques score through one shared eval harness
 ([src/courserec/eval.py](src/courserec/eval.py)) on **three lenses** —
 cross-listing twins (automatic), a hand-labeled judged free-text set (44
@@ -74,6 +77,13 @@ graph — with full metrics and bootstrap CIs, written to one-command leaderboar
   Track B.8). The two ranking failures pointed here: the LLM earns its cost
   *explaining* a ranking, not producing one
   ([llm.py](src/courserec/recommenders/llm.py), [ADR-0011](docs/adr/0011-llm-explainer.md)).
+- **Phase 8 — minimal Streamlit UI:** three views — Explore (course or free-text →
+  top-k with scores + an opt-in "why this fits" column), Compare (one query, two
+  techniques), Leaderboard (the eval table + UMAP map). A testable, Streamlit-free
+  registry ([app/registry.py](app/registry.py)) feeds a thin view layer
+  ([app/streamlit_app.py](app/streamlit_app.py)); it exposes a fast offline subset
+  of rungs while the full sweep stays in the leaderboard
+  ([ADR-0012](docs/adr/0012-streamlit-ui.md)).
 
 **Headline:** SBERT MiniLM tops both ranking lenses and beats the best lexical
 config on free text *decisively* (NDCG@10 0.682 vs 0.499, non-overlapping CIs).
@@ -95,9 +105,10 @@ already near-ceiling, so reordering it has no headroom and costs ~4 s/query
 [docs/RESULTS.md](docs/RESULTS.md) and [docs/TRADEOFFS.md](docs/TRADEOFFS.md).
 The "why this fits" explainer (Phase 7c) lands the LLM where it pays off —
 *justifying* an SBERT ranking, not producing one — and closes Track B.8
-([ADR-0011](docs/adr/0011-llm-explainer.md)). Next: the Phase 8 Streamlit UI (which
-surfaces that explainer line), or a reranker follow-up (TF-IDF base / qwen3:32b). The
-swappable `Recommender` interface is in
+([ADR-0011](docs/adr/0011-llm-explainer.md)). The **Phase 8 Streamlit UI** now
+surfaces all of it — techniques, the explainer line, and the leaderboard — from one
+`streamlit run` ([ADR-0012](docs/adr/0012-streamlit-ui.md)). The swappable
+`Recommender` interface is in
 [src/courserec/interfaces.py](src/courserec/interfaces.py).
 
 See [CHANGELOG.md](CHANGELOG.md) for history and [docs/adr/](docs/adr/) for

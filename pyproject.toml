@@ -40,6 +40,13 @@ viz = [
     "matplotlib==3.11.0",
     "umap-learn==0.5.7",
 ]
+# Phase 8 — minimal Streamlit UI (app/streamlit_app.py). Kept out of the base
+# install; the library and `scripts/run_eval.py` never import it. The UI surfaces
+# the semantic rungs, so pair it with the `semantic` extra:
+# `pip install -e ".[ui,semantic]"`.
+ui = [
+    "streamlit==1.41.1",
+]
 
 [tool.setuptools.packages.find]
 where = ["src"]
@@ -62,3 +69,6 @@ convention = "google"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
+# Put the repo root on sys.path so the root-level `app` package (the Phase 8 UI)
+# is importable in tests; `courserec` resolves via the editable install.
+pythonpath = ["."]

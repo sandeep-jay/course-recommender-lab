@@ -5,50 +5,53 @@
 
 ## Current state
 
-Phases 0–7c are green: `pytest` = **170 passed**, `ruff`/`black` clean. **Track B.8
-(LLM enrichment) is complete** — tags → reranker → explainer. The new **Phase 7c
-"why this fits" explainer** (`RecommendationExplainer`, `recommenders/llm.py`) is
-the last B.8 piece and the one the two negative ranking results (tags ADR-0009,
-reranker ADR-0010) pointed to: spend the LLM **justifying** an SBERT ranking, not
-producing one.
+Phases 0–8 are green: `pytest` = **184 passed**, `ruff`/`black` clean. **Phase 8
+(minimal Streamlit UI, plan §4) is complete** — every prior phase is now reachable
+from one `streamlit run app/streamlit_app.py`.
 
-By design it is **not a `Recommender` and not on the leaderboard** — a free-text
-justification has no ground-truth ordering to score (ADR-0011). It returns one
-sentence per (query, candidate) pair via one deterministic qwen3:8b call under a
-`{"reason": str}` schema, cached by `sha1(model+query+candidate-id)` in
-`explanations.json`. Because the "why" line is *optional*, every unavailability path
-degrades to `None` (UI omits the line); `fit` never skips. Validated **live**
-(qwen3:8b) via `scripts/explain_recs.py` — concrete on-topic one-liners in both
-item-to-item and free-text modes; cache persists and repeat pairs serve with no
-call. ADR-0011 written; `RESULTS.md`, `TRADEOFFS.md`, `README.md`, CHANGELOG, ADR
-index all synced.
+Three views: **Explore** (course or free-text → top-k with scores + an opt-in "why
+this fits" column wired to the Phase 7c explainer), **Compare** (one query, two
+techniques side by side), **Leaderboard** (`results/leaderboard.csv` table + the
+Phase 6 UMAP map). The load-bearing choice (ADR-0012) is a **two-file split**: an
+import-safe, Streamlit-free `app/registry.py` (technique factories + label helper,
+**unit-tested**) feeds a thin view layer `app/streamlit_app.py`. The UI exposes a
+**curated offline subset** of six rungs (SBERT MiniLM (default), SBERT MPNet,
+TF-IDF, BM25, LSA, Metadata+text) — fast, no API key, no model downloads beyond the
+SBERT cache; the *full* sweep (API/LLM/cross-encoder/graph rungs) stays in
+`scripts/run_eval.py` and the Leaderboard table. Catalog, fitted techniques, and the
+explainer are `st.cache_resource`-cached so interactions never re-fit; the why-line
+degrades to `—` when Ollama is down.
 
-**SBERT MiniLM remains the top rung on both ranking lenses; the LLM's earned role is
-explanation, not ranking.**
+Validated **headlessly** via Streamlit's `AppTest` (query "practical deep learning"
+→ `DATA C182` top hit; all three views render with no exceptions). New optional
+extra `ui` (`streamlit==1.41.1`) + `pythonpath = ["."]` in `pyproject`. ADR-0012
+written; `README.md`, CHANGELOG, ADR index all synced.
+
+**SBERT MiniLM remains the top rung on both ranking lenses; the UI defaults to it.**
 
 ## Next task
 
-**Phase 8 Streamlit UI** (recommended) — it surfaces everything built: the
-`Recommender` leaderboard, item-to-item + free-text modes, and the new Phase 7c
-"why this fits" line (already wired and live). Alternative: a **reranker follow-up**
-sweep (TF-IDF base for real reorder headroom, or qwen3:32b) — likely low ROI given
-the near-ceiling SBERT base, and the reranker rung is closed.
+Open — the roadmap's planned phases (0–8) are complete. Candidate follow-ups, all
+optional: (a) **deploy the UI** (Streamlit Community Cloud / a Dockerfile) so the
+portfolio piece is clickable; (b) a **reranker follow-up** sweep (TF-IDF base for
+real reorder headroom, or qwen3:32b) — likely low ROI, the rung is closed; (c) a
+**`docs/RESULTS.md` Phase 8 note** if a deeper writeup is wanted (the UI itself is
+not a scored technique, so RESULTS was not changed this session).
 
 ## Open decisions
 
 | Decision | Options | Owner | Due |
 |---|---|---|---|
-| What's next now Track B.8 is complete | Phase 8 Streamlit UI (recommended — surfaces the explainer + leaderboard) / reranker follow-up (TF-IDF base or qwen3:32b — likely low ROI) | Sandeep | next session |
+| What's next now Phases 0–8 are complete | Deploy the UI (clickable portfolio piece) / reranker follow-up (low ROI) / call the roadmap done and polish docs | Sandeep | next session |
 
 ## Blockers / waiting-on
 
 None. The repo runs end-to-end offline; Ollama is only needed at query time to
 generate a *fresh* tag / rerank / explanation (all caches degrade gracefully or
-serve warm).
+serve warm). The UI needs `pip install -e ".[ui,semantic]"`.
 
 ## First task for next session
 
-Decide the Open-decisions item, then start it. Recommended: **Phase 8 Streamlit UI**
-— three views per plan §4 (Explore with the "why this fits" line, Compare two
-techniques, Leaderboard + UMAP map). The explainer (`RecommendationExplainer`) is
-ready to drop in via `explain_seed` / `explain` on top of the SBERT base.
+Decide the Open-decisions item. If undecided, **deploy the UI** is the highest-ROI
+portfolio move: it makes Phases 0–8 a single clickable demo. The app is
+`app/streamlit_app.py` (run with `streamlit run app/streamlit_app.py`).

@@ -15,3 +15,4 @@ One file per decision, format `NNNN-short-slug.md`. Write new ones with `/new-ad
 | [0009](0009-llm-enrichment-ollama.md) | LLM enrichment via local Ollama (tag-extraction rung) | Accepted | 2026-06-19 |
 | [0010](0010-llm-reranker.md) | Zero-shot LLM reranker (retrieve → LLM reorder over full text) | Accepted | 2026-06-19 |
 | [0011](0011-llm-explainer.md) | "Why this fits" explainer — a UI helper, not a scored recommender | Accepted | 2026-06-20 |
+| [0012](0012-streamlit-ui.md) | Phase 8 minimal Streamlit UI — testable registry + thin view layer | Accepted | 2026-06-20 |
