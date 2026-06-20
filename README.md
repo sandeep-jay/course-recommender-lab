@@ -65,8 +65,8 @@ graph — with full metrics and bootstrap CIs, written to one-command leaderboar
   extracts per-course tags, ranked by TF-IDF cosine over tag profiles
   ([llm.py](src/courserec/recommenders/llm.py)).
 - **Phase 7b — zero-shot LLM reranker:** SBERT retrieves top-20, qwen3:8b reorders
-  them over their *full* text in one deterministic call (cached); built +
-  live-verified, leaderboard delta pending
+  them over their *full* text in one deterministic call (cached); **measured — does
+  not beat the base** (a second honest negative result)
   ([llm.py](src/courserec/recommenders/llm.py), [ADR-0010](docs/adr/0010-llm-reranker.md)).
 
 **Headline:** SBERT MiniLM tops both ranking lenses and beats the best lexical
@@ -81,11 +81,15 @@ subjects ([ADR-0008](docs/adr/0008-metadata-fusion.md)); and the LLM tag rung
 **full-catalog (100%) enrichment overturned it** — at full coverage it ties lexical
 on cross-listing (0.957) and falls *below* plain TF-IDF on free text (0.404),
 because distilling a description to ~6–12 tags loses more signal than the LLM's
-normalization adds ([ADR-0009](docs/adr/0009-llm-enrichment-ollama.md)). See
+normalization adds ([ADR-0009](docs/adr/0009-llm-enrichment-ollama.md)); and the
+zero-shot LLM reranker **also fails to beat the SBERT base** (xlist 0.965 vs 0.971,
+text 0.656 vs 0.682 — both within CIs, recall@10 dips) because SBERT's top-20 is
+already near-ceiling, so reordering it has no headroom and costs ~4 s/query
+([ADR-0010](docs/adr/0010-llm-reranker.md)). See
 [docs/RESULTS.md](docs/RESULTS.md) and [docs/TRADEOFFS.md](docs/TRADEOFFS.md).
-Next: measure the just-built zero-shot LLM reranker (run `scripts/run_eval.py` with
-Ollama up to fill its rerank cache), then the "why this fits" explanation over full
-candidate text (Phase 7 b/c). The swappable `Recommender` interface is in
+Next: the "why this fits" explanation over full candidate text (Phase 7c), or a
+reranker follow-up (TF-IDF base / qwen3:32b), or the Phase 8 Streamlit UI. The
+swappable `Recommender` interface is in
 [src/courserec/interfaces.py](src/courserec/interfaces.py).
 
 See [CHANGELOG.md](CHANGELOG.md) for history and [docs/adr/](docs/adr/) for

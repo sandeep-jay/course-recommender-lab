@@ -5,47 +5,49 @@
 
 ## Current state
 
-Phases 0–7b are green with `pytest` = **160 passed**, `ruff`/`black` clean. The
-Phase 7 **zero-shot LLM reranker** (`LLMRerankRecommender`, `recommenders/llm.py`)
-is now built, tested, and wired into the sweep (19 techniques): it retrieves top-N
-(default 20) from a MiniLM SBERT base, then reorders those candidates with one
-deterministic Ollama call over their **full** text (no distillation — the lesson
-of ADR-0009), reusing `OllamaClient` (new `rank_candidates`). The model returns an
-integer permutation under a JSON-schema `format`; `_reconcile` always yields a full
-permutation however the model behaves. Reranks cache to `reranks.json` keyed
-`sha1(model+query+candidate-ids)`; offline it falls back to the base order, and
-`fit` skips (`LLMUnavailable`) only when Ollama is down *and* the cache is cold.
-Design in **ADR-0010**. The mechanism is **live-verified** against qwen3:8b
-(sensible toy reranking), but the **leaderboard delta is not yet measured** — the
-full eval was not run this session (it is one LLM call per cross-listing seed +
-judged query, ~hour-long on a cold cache).
+Phases 0–7b are green: `pytest` = **160 passed**, `ruff`/`black` clean. The Phase 7
+**zero-shot LLM reranker** (`LLMRerankRecommender`) is now **measured** and settled
+as a second documented negative result (joining the tag rung, ADR-0009): it **does
+not beat the SBERT MiniLM base** on either ranking lens.
 
-The prior tag rung (`LLMTagRecommender`) stays settled as not competitive
-(ADR-0009); SBERT MiniLM still tops both ranking lenses.
+| Lens | base NDCG@10 (CI) | reranker NDCG@10 (CI) | Δ | recall@10 |
+|---|---|---|---|---|
+| Cross-listing (1072) | 0.9710 [0.965, 0.977] | 0.9649 [0.957, 0.972] | −0.006 | 1.000 → 0.992 |
+| Judged free-text (44) | 0.6821 [0.615, 0.746] | 0.6559 [0.586, 0.729] | −0.026 | 0.706 → 0.667 |
+
+Both deltas are negative and inside the bootstrap CIs (no significant difference);
+recall@10 actually dips. recall@20 is identical base↔reranker (pure reorder) —
+SBERT's top-20 is already near the recall ceiling, so reordering has no headroom and
+only room to hurt (the Phase 4 cross-encoder trap with a zero-shot LLM). Cost ~4 s/
+query on a cold cache (~13000× the base). `reranks.json` is now **warm** (1117
+entries); the suite reruns fully offline and the metric columns are byte-identical
+across cold↔warm runs (reproducibility confirmed). Verdict written into **ADR-0010**;
+`RESULTS.md`, `TRADEOFFS.md`, `README.md`, leaderboards all synced.
+
+**SBERT MiniLM remains the top rung on both ranking lenses.**
 
 ## Next task
 
-**Measure the reranker.** Run `python scripts/run_eval.py` with `ollama serve` up
-+ qwen3:8b (warms `reranks.json`; the SBERT artifact is already cached). Read the
-delta vs the `sbert(all_minilm...)` base on both lenses — the reranker's ceiling is
-the base's recall@20, so it can only reorder what SBERT retrieves. Record the
-verdict in ADR-0010 (replace its "unmeasured at write time" caveat) and on the
-leaderboards. A second cold run should be free (cache warm) — confirm reproducibility.
+Pick one (see Open decisions): **Phase 7c "why this fits"** explanation (the last
+B.8 part — an LLM justification over full candidate text, reusing the warm Ollama
+client + tag/rerank caches), **Phase 8 Streamlit UI**, or a **reranker follow-up**
+sweep (TF-IDF base for real reorder headroom, or qwen3:32b). The reranker rung itself
+is closed — no further measurement needed.
 
 ## Open decisions
 
 | Decision | Options | Owner | Due |
 |---|---|---|---|
-| After measuring the reranker | "Why this fits" explanations + LLM-as-judge (finish Phase 7 b/c) / start Phase 8 Streamlit UI / tune the reranker (`retrieve_n`, `candidate_chars`, prompt, qwen3:32b) | Sandeep | next session |
+| What's next now the reranker is settled | Phase 7c "why this fits" explanations (finish B.8) / Phase 8 Streamlit UI / reranker follow-up (TF-IDF base or qwen3:32b — likely low ROI given the near-ceiling base) | Sandeep | next session |
 
 ## Blockers / waiting-on
 
-None. (The reranker eval needs `ollama serve` up + `qwen3:8b` at query time; once
-`reranks.json` is warm the suite reruns fully offline.)
+None. (`reranks.json` is warm, so `run_eval.py` reruns fully offline; Ollama is only
+needed at query time on a *cold* cache or for the future "why this fits" rung.)
 
 ## First task for next session
 
-Run `python scripts/run_eval.py` (Ollama up, qwen3:8b) to fill `reranks.json` and
-get the reranker's NDCG@10 on the cross-listing + judged free-text lenses; compare
-against the SBERT base, then write the verdict into ADR-0010 and confirm a warm
-rerun is deterministic.
+Decide the Open-decisions item, then start it. Recommended: **Phase 7c "why this
+fits"** — it completes Track B.8 and is the one rung that uses the LLM where the
+evidence says its value lives (full candidate text, a justification rather than a
+ranking), and it reuses the already-warm Ollama client and caches.

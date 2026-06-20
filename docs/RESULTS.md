@@ -5,7 +5,7 @@ Findings as each phase lands. The leaderboard itself
 `python scripts/run_eval.py` and never hand-edited; this file is the
 interpretation.
 
-## Phase 7 / B.8b — zero-shot LLM reranker (built; measurement pending)
+## Phase 7 / B.8b — zero-shot LLM reranker (measured: does not beat the base)
 
 The reranker (`LLMRerankRecommender`, `recommenders/llm.py`) acts on the tag
 rung's negative lesson: keep a strong retriever and spend the LLM on the **full**
@@ -15,14 +15,35 @@ SBERT base, then reorders those candidates with **one** deterministic Ollama cal
 reranks cache by `sha1(model+query+candidate-ids)`, and it falls back to the base
 order when Ollama is down. Design in [ADR-0010](adr/0010-llm-reranker.md).
 
-**No leaderboard numbers yet.** The mechanism is live-verified against qwen3:8b
-(sensible toy reranking, clean parse), but the eval — one LLM call per
-cross-listing seed + judged query — was not run this session and is the first task
-next session (`python scripts/run_eval.py`, Ollama up). The honest prior: the
-reranker can only reorder what SBERT retrieves, so its ceiling is the base's
-recall@20, and on the near-trivial cross-listing lens (twins already rank first)
-there is little to reorder — any lift, if it appears, should show on the judged
-free-text lens. This section gets its headline + table once measured.
+### Headline — a second documented negative result (qwen3:8b)
+
+Measured 2026-06-19 on a warm-cache `run_eval` (1072 cross-listing seeds, 44 judged
+queries). The reranker **does not beat the SBERT MiniLM base on either lens**:
+
+| Technique | Cross-list NDCG@10 | 95% CI | Free-text NDCG@10 | 95% CI |
+|---|---|---|---|---|
+| sbert (MiniLM) — base | **0.9710** | [0.965, 0.977] | **0.6821** | [0.615, 0.746] |
+| **llm_rerank (qwen3:8b)** | **0.9649** | **[0.957, 0.972]** | **0.6559** | **[0.586, 0.729]** |
+| Δ vs base | **−0.006** | (CIs overlap) | **−0.026** | (CIs overlap) |
+
+- Both deltas are **negative and inside the bootstrap CIs** — no significant
+  difference. The reranker also *lowers* recall@10 (cross-list 1.000 → 0.992,
+  text 0.706 → 0.667): it occasionally reorders a true twin out of the top-10.
+- NDCG@5 on the text lens is the only flat bright spot (0.6420 → 0.6457, +0.004,
+  also within noise) — the reranker tidies the very top but not @10.
+- **Why:** recall@20 is identical for base and reranker (1.000 cross-list, 0.869
+  text), confirming a pure reorder. SBERT's top-20 is already at/near the recall
+  ceiling, so there is essentially nothing to fix and only room to hurt — the same
+  "twins already rank first" trap that sank the Phase 4 cross-encoder, now with a
+  zero-shot LLM standing in for the trained one.
+- **Cost:** ~4.4 s/query (cross-list) and ~3.7 s/query (text) on a cold cache —
+  ~13000× the base's sub-millisecond latency. The warm cache reruns offline and is
+  reproducible (metric columns byte-identical across runs).
+
+Verdict: **SBERT MiniLM stays the top ranking-lens rung.** Like the tag rung, the
+LLM reranker is honest portfolio evidence — the mechanism is sound and robust, but
+a strong retriever on a near-ceiling task leaves it no headroom. A weaker base
+(TF-IDF) or a larger model (qwen3:32b) are the obvious follow-ups; neither was run.
 
 ## Phase 7 / B.8 — LLM enrichment via local Ollama (tag-extraction rung)
 

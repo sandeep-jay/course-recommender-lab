@@ -5,6 +5,27 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ## [Unreleased]
 
+### Measured
+- **Phase 7 / B.8b — zero-shot LLM reranker: measured, does not beat the base.**
+  Ran `scripts/run_eval.py` with Ollama up (qwen3:8b) to fill `reranks.json` (1117
+  reranks cached: 1072 cross-listing seeds + 44 judged queries), then a warm rerun
+  to confirm reproducibility.
+  - **Cross-listing lens:** NDCG@10 **0.9649** [0.957, 0.972] vs MiniLM base
+    **0.9710** [0.965, 0.977] — Δ −0.006, CIs overlap. recall@10 dips 1.000 →
+    0.9921 (a twin occasionally reordered out of the top-10).
+  - **Judged free-text lens:** NDCG@10 **0.6559** [0.586, 0.729] vs base **0.6821**
+    [0.615, 0.746] — Δ −0.026, CIs overlap. NDCG@5 flat (+0.004). recall@10
+    0.7056 → 0.6671.
+  - **Verdict:** a second documented negative result (joins the tag rung). recall@20
+    is identical base↔reranker (pure reorder); SBERT's top-20 is already at/near
+    the recall ceiling, so there is no headroom to exploit — the Phase 4
+    cross-encoder trap with a zero-shot LLM. **SBERT MiniLM stays the top rung.**
+  - **Cost:** ~4.4 s/query (cross-list), ~3.7 s/query (text) on a cold cache —
+    ~13000× the base latency. **Reproducibility:** warm rerun is fully offline and
+    the metric columns are byte-identical across runs (only timing differs).
+  - `results/leaderboard{,_text,_heldout}.{md,csv}` regenerated. ADR-0010 verdict
+    written in; `docs/RESULTS.md`, `docs/TRADEOFFS.md`, `README.md` synced.
+
 ### Added
 - **Phase 7 / B.8b — zero-shot LLM reranker.**
   - `src/courserec/recommenders/llm.py` — `LLMRerankRecommender`: retrieves the

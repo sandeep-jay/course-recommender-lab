@@ -82,16 +82,38 @@ degrade to the base order instead of failing. Reuses the existing client + cache
 machinery (zero new deps) and the base's own artifact, and `_reconcile` makes the
 rung robust to any malformed model reply.
 
-**Negative / honest caveats:** (1) Quality is **unmeasured at write time** — this
-ADR ships the mechanism; the leaderboard delta vs the SBERT base needs a warm-cache
-`run_eval` with `ollama serve` up (next session). The reranker can only reorder
-what the base retrieves, so its ceiling is the base's recall@`retrieve_n`. (2)
+**Measured verdict (2026-06-19, qwen3:8b, warm-cache `run_eval`).** The reranker
+**does not beat the SBERT MiniLM base** on either ranking lens — it is a documented
+negative result, joining the tag rung ([ADR-0009](0009-llm-enrichment-ollama.md)):
+
+| Lens | base NDCG@10 (CI) | reranker NDCG@10 (CI) | Δ | recall@10 | latency/query |
+|---|---|---|---|---|---|
+| Cross-listing (1072 seeds) | 0.9710 [0.9645, 0.9770] | 0.9649 [0.9574, 0.9718] | **−0.006** | 1.000 → 0.9921 | 0.33 ms → **4428 ms** |
+| Judged free-text (44 q) | 0.6821 [0.6153, 0.7456] | 0.6559 [0.5861, 0.7289] | **−0.026** | 0.7056 → 0.6671 | 8 ms → **3666 ms** |
+
+Both deltas are **negative and well inside the bootstrap CIs** (no significant
+difference), and the reranker *drops* recall@10 on both lenses — it occasionally
+reorders a true twin out of the top-10. NDCG@5 on the text lens is the one flat
+bright spot (0.6420 → 0.6457, +0.004, also within noise). The cause is structural,
+not a bug: the reranker can only reorder the base's top-`retrieve_n`, and SBERT's
+top-20 is already at/near the recall ceiling (recall@20 = **1.000** cross-list,
+0.8686 text — identical for base and reranker, confirming pure reorder), so there
+is essentially nothing to fix and only room to hurt. The cost is ~13000× the base
+latency on a cold cache. The mechanism is sound and robust (`_reconcile`, fallback,
+determinism all verified live); it just has no headroom to exploit here. **SBERT
+MiniLM stays the top ranking-lens rung.** The warm cache reruns fully offline and
+the metric columns are byte-identical across runs (reproducibility confirmed).
+
+**Other honest caveats:** (1) The verdict is qwen3:8b-specific; a larger model
+(qwen3:32b) or a *weaker* base (TF-IDF, leaving real reorder headroom) could shift
+it — both are obvious follow-up sweeps, not run here. (2)
 `candidate_chars=1000` truncates the longest descriptions (catalog max ~181 words
 ≈ within budget for most, but not all) — a deliberate prompt-size bound, not a
 free choice. (3) `retrieve_n=20`, `candidate_chars`, and the prompt wording are
-chosen defaults, not tuned — obvious future sweeps. (4) Latency: one LLM call per
-distinct (query, candidate-set) on a cold cache; the cross-listing + judged-query
-eval sets are bounded, so the one-time cost is minutes, not hours.
+chosen defaults, not tuned — obvious future sweeps (none moved the needle enough to
+try here given the negative headroom above). (4) Latency: one LLM call per distinct
+(query, candidate-set) on a cold cache (~4 s each, measured); the eval sets are
+bounded, so the one-time cost was minutes, and warm reruns are offline + instant.
 
 **Neutral:** Default base is MiniLM SBERT (the top ranking-lens rung); a TF-IDF
 base is a one-arg swap to isolate the rerank's contribution from the retriever's.
