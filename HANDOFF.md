@@ -15,8 +15,11 @@ the top rung and the UI default. No roadmap work is pending — the one open thr
 ## Next task
 
 Decide the open-decisions row, then start it. If deploying the UI: add a `Dockerfile`
-(or a Streamlit Community Cloud config) that runs `streamlit run app/streamlit_app.py`
-with `pip install -e ".[ui,semantic]"`, so Phases 0–8 become one clickable demo.
+(or a Streamlit Community Cloud / HF Spaces config) that runs
+`streamlit run app/streamlit_app.py` with `pip install -e ".[ui,semantic]"` — the
+install tiers + models table in [docs/RUNBOOK.md](docs/RUNBOOK.md) are the spec.
+Note: `artifacts/` is gitignored, so a fresh host starts cold (encode ~11k SBERT
+vectors + t-SNE projection on first load) — commit a warm artifact or accept ~30 s.
 
 ## Open decisions
 
@@ -33,4 +36,5 @@ needs `pip install -e ".[ui,semantic]"` (add `viz` for the Map's faster UMAP).
 ## First task for next session
 
 Decide the open-decisions row; if undecided, scaffold a `Dockerfile` that serves
-`app/streamlit_app.py` to make the UI deployable.
+`app/streamlit_app.py` (per [docs/RUNBOOK.md](docs/RUNBOOK.md)) to make the UI
+deployable.
