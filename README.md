@@ -64,6 +64,10 @@ graph — with full metrics and bootstrap CIs, written to one-command leaderboar
 - **Phase 7 — LLM enrichment (tag rung):** local Ollama (qwen3:8b, no API key)
   extracts per-course tags, ranked by TF-IDF cosine over tag profiles
   ([llm.py](src/courserec/recommenders/llm.py)).
+- **Phase 7b — zero-shot LLM reranker:** SBERT retrieves top-20, qwen3:8b reorders
+  them over their *full* text in one deterministic call (cached); built +
+  live-verified, leaderboard delta pending
+  ([llm.py](src/courserec/recommenders/llm.py), [ADR-0010](docs/adr/0010-llm-reranker.md)).
 
 **Headline:** SBERT MiniLM tops both ranking lenses and beats the best lexical
 config on free text *decisively* (NDCG@10 0.682 vs 0.499, non-overlapping CIs).
@@ -79,8 +83,9 @@ on cross-listing (0.957) and falls *below* plain TF-IDF on free text (0.404),
 because distilling a description to ~6–12 tags loses more signal than the LLM's
 normalization adds ([ADR-0009](docs/adr/0009-llm-enrichment-ollama.md)). See
 [docs/RESULTS.md](docs/RESULTS.md) and [docs/TRADEOFFS.md](docs/TRADEOFFS.md).
-Next: the zero-shot LLM reranker + "why this fits" over full candidate text
-(Phase 7 b/c). The swappable `Recommender` interface is in
+Next: measure the just-built zero-shot LLM reranker (run `scripts/run_eval.py` with
+Ollama up to fill its rerank cache), then the "why this fits" explanation over full
+candidate text (Phase 7 b/c). The swappable `Recommender` interface is in
 [src/courserec/interfaces.py](src/courserec/interfaces.py).
 
 See [CHANGELOG.md](CHANGELOG.md) for history and [docs/adr/](docs/adr/) for

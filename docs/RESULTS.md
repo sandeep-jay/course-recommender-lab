@@ -5,6 +5,25 @@ Findings as each phase lands. The leaderboard itself
 `python scripts/run_eval.py` and never hand-edited; this file is the
 interpretation.
 
+## Phase 7 / B.8b — zero-shot LLM reranker (built; measurement pending)
+
+The reranker (`LLMRerankRecommender`, `recommenders/llm.py`) acts on the tag
+rung's negative lesson: keep a strong retriever and spend the LLM on the **full**
+candidate text, not on lossy distillation. It retrieves the top-20 from the MiniLM
+SBERT base, then reorders those candidates with **one** deterministic Ollama call
+(qwen3:8b) that returns an integer permutation under a JSON-schema `format`;
+reranks cache by `sha1(model+query+candidate-ids)`, and it falls back to the base
+order when Ollama is down. Design in [ADR-0010](adr/0010-llm-reranker.md).
+
+**No leaderboard numbers yet.** The mechanism is live-verified against qwen3:8b
+(sensible toy reranking, clean parse), but the eval — one LLM call per
+cross-listing seed + judged query — was not run this session and is the first task
+next session (`python scripts/run_eval.py`, Ollama up). The honest prior: the
+reranker can only reorder what SBERT retrieves, so its ceiling is the base's
+recall@20, and on the near-trivial cross-listing lens (twins already rank first)
+there is little to reorder — any lift, if it appears, should show on the judged
+free-text lens. This section gets its headline + table once measured.
+
 ## Phase 7 / B.8 — LLM enrichment via local Ollama (tag-extraction rung)
 
 Phase 7 adds the LLM rung (`recommenders/llm.py`): a local LLM (Ollama,
