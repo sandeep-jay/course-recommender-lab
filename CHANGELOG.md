@@ -46,7 +46,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
   - `$PORT`-aware `CMD` + headless `.streamlit/config.toml`, runs as a non-root
     `appuser`, `/_stcore/health` HEALTHCHECK — so Cloud Run / HF Spaces (Docker) work
     unchanged. `.dockerignore` ships only the runtime subset (~150 MB of artifacts;
-    raw CSV, regenerable caches, and unused rungs excluded).
+    raw CSV, regenerable caches, `tests/`/`scripts/`/`docs/`/`notebooks/`, and unused
+    rungs excluded — the Dockerfile's targeted `COPY`s never pull them, this keeps the
+    build context lean too).
   - Honest caveat: the build `COPY`s the gitignored `data/processed/` + `artifacts/`,
     so it must run from a **warm repo** (pipeline + eval already run) — not a fresh
     clone. Documented in the RUNBOOK's new **Deploy (4a)** section + troubleshooting

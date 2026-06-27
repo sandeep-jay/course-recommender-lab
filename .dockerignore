@@ -21,6 +21,7 @@ venv/
 tests/
 scripts/
 docs/
+notebooks/
 CHANGELOG.md
 HANDOFF.md
 *.ipynb
