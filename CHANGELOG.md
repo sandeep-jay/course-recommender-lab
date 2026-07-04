@@ -39,6 +39,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
   clickable links; RESULTS headings were made descriptive-first with their anchors updated.
 
 ### Fixed
+- **Pinned Pygments below 2.19 in the docs toolchain to keep the docs build reproducible.**
+  Pygments 2.19+ changed `HtmlFormatter` so pymdown-extensions' highlighter crashes with
+  `filename=None`; Pygments is a transitive dep, so an unconstrained resolve floated it to
+  a breaking 2.20. CI had been green only by luck of its build cache. Added `Pygments<2.19`
+  to both `requirements-docs.txt` (CI's install source) and the `[docs]` extra in
+  `pyproject.toml`. Verified with a from-scratch venv install off `requirements-docs.txt`
+  (CI's exact path) → `mkdocs build --strict` passes.
 - **Repaired the `.venv` broken by the `course-rec-bert` → `course-recommender-lab`
   directory rename.** The editable install and every `.venv/bin/*` console-script
   shebang still pointed at the vanished old path, so `import courserec` failed and

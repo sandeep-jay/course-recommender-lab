@@ -9,3 +9,7 @@
 mkdocs-material>=9.5,<10
 mkdocs-jupyter>=0.25,<0.26
 pymdown-extensions>=10.7,<11
+# Pin Pygments below 2.19: 2.19+ changed HtmlFormatter so pymdown-extensions 10.14's
+# highlighter crashes with `filename=None`. Pygments is a transitive dep, so an
+# unconstrained resolve floats it to a breaking version. See ADR-0015 / HANDOFF.
+Pygments<2.19

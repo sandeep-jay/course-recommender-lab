@@ -38,7 +38,8 @@ Optional polish, in priority order: (1) **Stage 3** — a standalone RecSys conc
 
 | Decision | Options | Owner | Due |
 |---|---|---|---|
-| **Pin the docs Pygments dep** | `requirements-docs.txt` + the `[docs]` extra are range-pinned; a fresh resolve pulls Pygments 2.20, which breaks pymdown-extensions 10.14 (`filename=None`). CI is green only via its build cache. Pin `Pygments<2.19` (known-good, tested locally) **or** bump `pymdown-extensions>=10.15` — but note: editing `requirements-docs.txt` invalidates the CI cache, so the pin must be correct in the same commit. | Sandeep | before the CI docs cache next evicts |
+| ~~Pin the docs Pygments dep~~ | **Done** — `Pygments<2.19` added to `requirements-docs.txt` and the `[docs]` extra; verified via a from-scratch venv resolve (CI's exact path) → `mkdocs build --strict` passes. | Sandeep | resolved |
+| **Docs dep drift (optional)** | `requirements-docs.txt` (ranges → material 9.7.6, pymdownx 10.21.3) and the `[docs]` extra (exact → material 9.5.49, pymdownx 10.14) resolve to *different* versions despite the "mirror" comment. Both build clean today. Reconcile to one pin style for fully reproducible builds if desired. | Sandeep | when convenient |
 | **Node 20 deprecation in `docs.yml`** | `actions/checkout@v4`, `setup-python@v5`, `upload-artifact@v4` are being force-migrated to Node 24 by GitHub (warning only today). Bump the action pins when convenient. | Sandeep | when convenient |
 | Where to host the Docker image | Cloud Run / HF Spaces (Docker) / leave as a local `docker run` portfolio artifact | Sandeep | when convenient |
 | pyproject **import** package stays `courserec` | keep (hyphens illegal in module names) vs rename to `course_recommender_lab` (228 sites) | Sandeep | not planned |
