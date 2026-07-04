@@ -47,7 +47,7 @@ Optional polish, in priority order: (1) **Stage 3** — a standalone RecSys conc
 |---|---|---|---|
 | ~~Pin the docs Pygments dep~~ | **Done** — `Pygments<2.19` added to `requirements-docs.txt` and the `[docs]` extra; verified via a from-scratch venv resolve (CI's exact path) → `mkdocs build --strict` passes. | Sandeep | resolved |
 | **Docs dep drift (optional)** | `requirements-docs.txt` (ranges → material 9.7.6, pymdownx 10.21.3) and the `[docs]` extra (exact → material 9.5.49, pymdownx 10.14) resolve to *different* versions despite the "mirror" comment. Both build clean today. Reconcile to one pin style for fully reproducible builds if desired. | Sandeep | when convenient |
-| **Node 20 deprecation in `docs.yml`** | `actions/checkout@v4`, `setup-python@v5`, `upload-artifact@v4` are being force-migrated to Node 24 by GitHub (warning only today). Bump the action pins when convenient. | Sandeep | when convenient |
+| ~~Node 20 deprecation in the workflows~~ | **Done** — bumped `checkout@v7`, `setup-python@v6`, `upload-pages-artifact@v5`, `deploy-pages@v5` (all node24) in `test.yml` + `docs.yml`. Local dev Node also moved off EOL v16 to LTS **v24.18.0** via nvm (`default -> lts/*`). | Sandeep | resolved |
 | Where to host the Docker image | Cloud Run / HF Spaces (Docker) / leave as a local `docker run` portfolio artifact | Sandeep | when convenient |
 | pyproject **import** package stays `courserec` | keep (hyphens illegal in module names) vs rename to `course_recommender_lab` (228 sites) | Sandeep | not planned |
 | ~~Rename local working dir~~ / ~~Enable GitHub Pages~~ | **Both done** — dir renamed + `.venv` repaired; Pages live. Loose end: the `.claude` memory path still keys off the old dir name if you rely on it. | Sandeep | resolved |

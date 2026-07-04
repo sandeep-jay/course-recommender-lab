@@ -35,6 +35,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
   Surfaced from the Home grid and the nav (Stage 1 of the learner-navigation pass).
 
 ### Changed
+- **Bumped the GitHub Actions off the deprecated Node 20 runtime.** `actions/checkout`
+  v4→**v7**, `actions/setup-python` v5→**v6**, `actions/upload-pages-artifact` v3→**v5**,
+  and `actions/deploy-pages` v4→**v5** across both `test.yml` and `docs.yml` — all now run
+  on **node24** (verified via each action's `action.yml`), clearing the deprecation warning.
 - **Rebuilt the Architecture diagram for readability.** Replaced the cramped wide
   left-right Mermaid flowchart (seven tiny technique boxes) with a compact top-down flow,
   and added two text representations alongside it — a plain-language "pipeline in five
