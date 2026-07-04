@@ -20,7 +20,7 @@ findings rather than hiding them.
 - **Production patterns from day one.** A swappable ABC, persisted artifacts, pinned
   dependencies, an ADR per architectural decision, tests alongside every technique.
 - **Reproducible and key-free.** Global `RANDOM_SEED = 42`; the whole repo runs
-  end-to-end with **no API key**. The LLM rung uses a local Ollama daemon and degrades
+  end-to-end with **no API key**. The LLM technique uses a local Ollama daemon and degrades
   gracefully when it's absent.
 - **Portable.** No hardcoded paths, keys, or magic numbers; everything runs on a laptop.
 

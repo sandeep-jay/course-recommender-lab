@@ -49,8 +49,8 @@ ones that contradicted the obvious hypothesis:
    identical, leaving the graph no headroom. → [ADR-0006](adr/0006-graph-heldout.md)
 
 3. **The LLM loses at ranking, wins at explaining.** Two LLM ranking approaches — tag
-   distillation and zero-shot rerank — both **failed to beat plain SBERT** (tag rung
-   *looked* like a winner on a 12.5% subset, then **full-catalog enrichment overturned
+   distillation and zero-shot rerank — both **failed to beat plain SBERT** (the tag
+   approach *looked* like a winner on a 12.5% subset, then **full-catalog enrichment overturned
    it**). The honest conclusion: a local qwen3:8b earns its cost *justifying* a
    recommendation, not producing one. → [ADR-0009](adr/0009-llm-enrichment-ollama.md),
    [ADR-0010](adr/0010-llm-reranker.md), [ADR-0011](adr/0011-llm-explainer.md)
@@ -76,5 +76,5 @@ Three project invariants show up everywhere and are worth knowing while reading:
 - **The `"-"` null token.** The catalog uses the string `"-"` for missing data; it's
   replaced with real NA on load and never treated as a value.
 - **Reproducible, key-free.** Global `RANDOM_SEED = 42`; the whole repo runs end-to-end
-  with **no API key** (the LLM rung uses a local Ollama daemon and degrades gracefully
+  with **no API key** (the LLM technique uses a local Ollama daemon and degrades gracefully
   when it's absent).

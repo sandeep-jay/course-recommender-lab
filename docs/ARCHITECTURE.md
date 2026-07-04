@@ -5,27 +5,46 @@ the same interface, one harness can score them all and one leaderboard can rank 
 Everything else — the data pipeline, the artifact cache, the eval lenses, the UI —
 hangs off that contract.
 
+The same picture three ways — a diagram, a plain-language walkthrough, and a table of
+the techniques. Read whichever suits you.
+
 ```mermaid
-flowchart LR
-    RAW[Raw catalog CSV] -->|prepare_data.py| PROC[Processed parquet]
-    PROC --> FIT[Recommender.fit]
-    subgraph techniques[Techniques · one interface]
-      LEX[Lexical<br/>TF-IDF · BM25]
-      TOP[Topics<br/>LSA · NMF · LDA]
-      SB[SBERT<br/>MiniLM · MPNet]
-      RR[Rerank<br/>cross-encoder + MMR]
-      GR[Graph<br/>personalized PageRank]
-      MD[Metadata fusion]
-      LLM[LLM<br/>tags · rerank · explain]
-    end
-    FIT --> techniques
-    techniques -->|artifacts/&lt;name&gt;/| CACHE[(Artifact cache)]
-    techniques --> EVAL[Evaluation harness]
-    GT[Cross-listing ground truth] --> EVAL
-    JQ[Judged free-text queries] --> EVAL
-    EVAL --> LB[[Leaderboard .md/.csv]]
-    techniques --> UI[Streamlit UI]
+%%{init: {'themeVariables': {'fontSize': '16px'}, 'flowchart': {'rankSpacing': 55, 'nodeSpacing': 35}}}%%
+flowchart TB
+    RAW([Raw catalog CSV]) -->|prepare_data.py| PROC([Processed parquet<br/>11,073 courses])
+    PROC --> FIT[["Recommender.fit<br/>one interface · seven techniques"]]
+    FIT -->|persist and reload| CACHE[(Artifact cache)]
+    FIT --> EVAL[["Evaluation harness<br/>3 lenses · 5 metrics"]]
+    GT([Cross-listing<br/>ground truth]) --> EVAL
+    JQ([Judged free-text<br/>queries]) --> EVAL
+    EVAL --> LB[["Leaderboard<br/>markdown + csv"]]
+    FIT --> UI([Streamlit UI +<br/>warm Docker image])
 ```
+
+**The pipeline in five steps:**
+
+1. **Clean the data.** `prepare_data.py` turns the raw UC Berkeley catalog CSV into a
+   model-ready parquet of **11,073 courses** ([see The Data](data.md)).
+2. **Fit every technique through one interface.** All seven technique families implement
+   the same `Recommender.fit()` contract, so nothing downstream needs to know which is which.
+3. **Cache the fitted models.** Embeddings, indexes, and vectors persist to disk and
+   reload on the next run — nothing expensive is recomputed.
+4. **Score them all the same way.** One evaluation harness ranks every technique through
+   three lenses, using the cross-listing ground truth and a set of judged free-text queries.
+5. **Rank and explore.** The harness writes a leaderboard; the same fitted techniques also
+   power an interactive Streamlit UI and a ready-to-run Docker image.
+
+**The seven technique families** — each is built from primitives in its own notebook:
+
+| Family | In one line | Build it in |
+|---|---|---|
+| **Lexical** | TF-IDF and BM25 over the term–document matrix — the honest baseline. | [Notebook 01](notebooks/01_lexical.ipynb) |
+| **Topic models** | LSA, NMF, LDA — compress the term space to latent topics. | [Notebook 02](notebooks/02_topics.ipynb) |
+| **SBERT** | Sentence-embedding vectors (MiniLM, MPNet) — the overall winner. | [Notebook 03](notebooks/03_embeddings.ipynb) |
+| **Rerank + MMR** | A cross-encoder reranks SBERT candidates, with a diversity knob. | [Notebook 04](notebooks/04_rerank.ipynb) |
+| **Metadata fusion** | Fuse subject/level/units with text — and watch it *hurt*. | [Notebook 05](notebooks/05_metadata.ipynb) |
+| **Graph (PPR)** | Personalized PageRank on a leak-safe held-out edge split. | [Notebook 06](notebooks/06_graph.ipynb) |
+| **LLM** | Local Ollama for tags, zero-shot rerank, and explanations. | [Notebook 08](notebooks/08_llm.ipynb) |
 
 ## The contract
 
@@ -77,7 +96,7 @@ load if present — embeddings are **never recomputed** every run. The embedding
 is `sha1(model_name + normalized_text)`. Every stochastic step uses the global
 `RANDOM_SEED = 42`. `artifacts/` is gitignored.
 
-API-backed techniques (a hosted embedding backend, the LLM rung) **degrade gracefully**
+API-backed techniques (a hosted embedding backend, the LLM technique) **degrade gracefully**
 when no key or daemon is present — they skip and note it, never hard-failing the suite.
 The repo runs end-to-end **with no API key**.
 
@@ -115,6 +134,6 @@ Because every technique looks identical to the harness, the same set powers two 
 surfaces with no special-casing:
 
 - **Streamlit UI** ([ADR-0012](adr/0012-streamlit-ui.md)) — Explore, Compare,
-  Leaderboard, and an interactive 2-D Map, over a fast offline subset of rungs.
+  Leaderboard, and an interactive 2-D Map, over a fast offline subset of techniques.
 - **Warm Docker image** ([ADR-0013](adr/0013-deploy-warm-docker-image.md)) — the UI with
   catalog, artifacts, and MiniLM weights baked in, CPU-only, no first-load encode.

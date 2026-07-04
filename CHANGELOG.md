@@ -6,6 +6,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 ## [Unreleased]
 
 ### Added
+- **"Start Here" learning path (`docs/learn.md`)** — a guided on-ramp for the learner
+  audience: the core idea (content-based vs collaborative, and why this catalog forces
+  content-based), then one ordered route — data → evaluation foundation → the eight
+  techniques simplest-to-smartest → leaderboard → interactive UI. Includes a
+  time-budgeted "if you only have a few minutes" shortcut and a learning-order technique
+  table. Signposted from Home and the top of the nav (Stage 2 of the learner-navigation pass).
 - **"The Data" page on the docs site (`docs/data.md`)** — a learner-facing grounding of
   the UC Berkeley course catalog the whole lab recommends over. Links the source catalog,
   shows a real sample record (DATA C8) carried through the cleaning pipeline, the 8-field
@@ -14,6 +20,23 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
   ground truth** and the leakage rule via the four-way DATA/STAT/COMPSCI/INFO C8 twin.
   All figures pulled from the real catalog (11,073 courses, 242 subjects, 1,080 twins).
   Surfaced from the Home grid and the nav (Stage 1 of the learner-navigation pass).
+
+### Changed
+- **Rebuilt the Architecture diagram for readability.** Replaced the cramped wide
+  left-right Mermaid flowchart (seven tiny technique boxes) with a compact top-down flow,
+  and added two text representations alongside it — a plain-language "pipeline in five
+  steps" walkthrough and a "seven technique families" table that links each to its
+  notebook. The same system three ways: diagram, prose, table.
+- **Reorganized the docs nav into audience lanes.** Flat 12-item list → a learner path
+  (Start Here → **Learn the techniques**) and a reviewer path (Reviewer Guide →
+  **Results & Findings**) over shared **Reference** material (Runbook, ADRs, Roadmap,
+  Changelog, About).
+- **Expanded roadmap-internal shorthand across the docs for external readers.** Replaced
+  opaque codes a recruiter/learner can't decode — `Phase N`, `Track B.N` / `B.8c`,
+  `plan §N`, and the `rung` metaphor — with plain descriptive names (e.g. "Phase 7" →
+  "the LLM stage", "rung" → "technique") across RESULTS, TRADEOFFS, RUNBOOK, ARCHITECTURE,
+  reviewer-guide, about, and case-study. In-document `§N` cross-references became real
+  clickable links; RESULTS headings were made descriptive-first with their anchors updated.
 
 ### Fixed
 - **Repaired the `.venv` broken by the `course-rec-bert` → `course-recommender-lab`

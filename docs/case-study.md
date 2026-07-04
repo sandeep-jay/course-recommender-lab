@@ -95,7 +95,7 @@ to contribute ([ADR-0006](adr/0006-graph-heldout.md)).
 
 ### 3. The LLM loses at ranking, wins at explaining
 
-The most instructive arc. The **tag rung** — distill each course to ~6–12 LLM-extracted
+The most instructive arc. The **tag technique** — distill each course to ~6–12 LLM-extracted
 tags — *looked* like it beat every lexical baseline… on a 12.5% eval-target subset. Then
 **full-catalog (100%) enrichment overturned it**: at full coverage it merely ties lexical
 on cross-listing and falls *below* plain TF-IDF on free text, because distilling a

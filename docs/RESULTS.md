@@ -5,10 +5,10 @@ Findings as each phase lands. The leaderboard itself
 `python scripts/run_eval.py` and never hand-edited; this file is the
 interpretation.
 
-## Phase 7 / B.8c — "why this fits" explainer (closes Track B.8)
+## The "why this fits" explainer — closing out the LLM enrichment track
 
-The last B.8 piece (`RecommendationExplainer`, `recommenders/llm.py`) is the one
-the two negative results pointed to. The tag rung (ADR-0009) and the reranker
+The last LLM-enrichment piece (`RecommendationExplainer`, `recommenders/llm.py`) is the one
+the two negative results pointed to. The tag technique (ADR-0009) and the reranker
 (ADR-0010) both tried to make the LLM **rank**, and both lost to a 0.38 M-param
 SBERT bi-encoder already sitting at the recall ceiling. Explanation is a different
 job: the ranking already exists (from SBERT), and the LLM is spent only on
@@ -40,14 +40,14 @@ Concrete and on-topic; the cache persists and a repeat pair serves with no call.
 Honest caveats: no automatic quality metric (inspection only — an LLM-as-judge is
 a possible future check, itself needing validation); qwen3:8b-specific output that
 occasionally restates the query rather than naming the *shared* concept; the
-explainer describes a recommendation, it does not certify it. **Track B.8 (LLM
-enrichment) is complete:** tags → reranker → explainer, two negative ranking
+explainer describes a recommendation, it does not certify it. **The LLM
+enrichment track is complete:** tags → reranker → explainer, two negative ranking
 results and one shipped UI helper. See [ADR-0011](adr/0011-llm-explainer.md).
 
-## Phase 7 / B.8b — zero-shot LLM reranker (measured: does not beat the base)
+## The zero-shot LLM reranker (measured: does not beat the base)
 
 The reranker (`LLMRerankRecommender`, `recommenders/llm.py`) acts on the tag
-rung's negative lesson: keep a strong retriever and spend the LLM on the **full**
+technique's negative lesson: keep a strong retriever and spend the LLM on the **full**
 candidate text, not on lossy distillation. It retrieves the top-20 from the MiniLM
 SBERT base, then reorders those candidates with **one** deterministic Ollama call
 (qwen3:8b) that returns an integer permutation under a JSON-schema `format`;
@@ -73,22 +73,22 @@ queries). The reranker **does not beat the SBERT MiniLM base on either lens**:
 - **Why:** recall@20 is identical for base and reranker (1.000 cross-list, 0.869
   text), confirming a pure reorder. SBERT's top-20 is already at/near the recall
   ceiling, so there is essentially nothing to fix and only room to hurt — the same
-  "twins already rank first" trap that sank the Phase 4 cross-encoder, now with a
+  "twins already rank first" trap that sank the rerank stage's cross-encoder, now with a
   zero-shot LLM standing in for the trained one.
 - **Cost:** ~4.4 s/query (cross-list) and ~3.7 s/query (text) on a cold cache —
   ~13000× the base's sub-millisecond latency. The warm cache reruns offline and is
   reproducible (metric columns byte-identical across runs).
 
-Verdict: **SBERT MiniLM stays the top ranking-lens rung.** Like the tag rung, the
+Verdict: **SBERT MiniLM stays the top ranking-lens technique.** Like the tag technique, the
 LLM reranker is honest portfolio evidence — the mechanism is sound and robust, but
 a strong retriever on a near-ceiling task leaves it no headroom. A weaker base
 (TF-IDF) or a larger model (qwen3:32b) are the obvious follow-ups; neither was run.
 
-## Phase 7 / B.8 — LLM enrichment via local Ollama (tag-extraction rung)
+## LLM enrichment via local Ollama (the tag-extraction technique)
 
-Phase 7 adds the LLM rung (`recommenders/llm.py`): a local LLM (Ollama,
-**qwen3:8b**, no API key — plan §1) reads each course and emits structured tags
-(topics, skills, level, prereqs-mentioned); the rung ranks by TF-IDF cosine over
+The LLM stage adds the LLM technique (`recommenders/llm.py`): a local LLM (Ollama,
+**qwen3:8b**, no API key — see [the project plan](roadmap/recommender_plan.md)) reads each course and emits structured tags
+(topics, skills, level, prereqs-mentioned); the technique ranks by TF-IDF cosine over
 those **tag profiles** (topics+skills+prereqs), with raw-text fallback for any
 course not yet enriched. Enrichment is a separate, cached, resumable pass
 (`scripts/enrich_catalog.py`) so `fit` only reads the cache and the eval stays
@@ -139,7 +139,7 @@ synonym-normalization the LLM adds:
 
 ### What this says / next step
 
-- **Honest verdict: the tag-distillation rung is not competitive.** It ties lexical
+- **Honest verdict: the tag-distillation technique is not competitive.** It ties lexical
   on cross-listing and underperforms plain TF-IDF on free text. Running the full
   catalog (`enrich_catalog.py --all`) was the point — it converted a
   promising-but-confounded number into a clean negative, which is the result that
@@ -149,17 +149,17 @@ synonym-normalization the LLM adds:
 - **The LLM's value, if any, is elsewhere.** Not in compressing text to tags and
   matching lexically, but in operations that use the *full* candidate text: the
   **zero-shot reranker** (judge candidate pairs directly) and the **"why this
-  fits"** explanation (plan §2.8 b/c), plus **LLM-as-judge** validation of the
-  free-text lens (plan §3). Those are the next builds.
-- **Still local, keyless, zero-cost, zero new dependencies.** The rung runs on
+  fits"** explanation, plus **LLM-as-judge** validation of the
+  free-text lens (part of the evaluation methodology). Those are the next builds.
+- **Still local, keyless, zero-cost, zero new dependencies.** The technique runs on
   Ollama over stdlib `urllib`; the offline guarantee is untouched, and it
   skips+flags (never hard-fails) when Ollama is down and nothing is cached. The
-  100% tag cache is reusable by the reranker and the UI regardless of this rung's
+  100% tag cache is reusable by the reranker and the UI regardless of this technique's
   ranking verdict.
 
-## Phase 6 — clustering + 2-D map over the SBERT embeddings (diagnostic)
+## Clustering + 2-D map over the SBERT embeddings (diagnostic)
 
-Phase 6 adds `src/courserec/cluster.py` and `scripts/run_clustering.py` — a
+The clustering stage adds `src/courserec/cluster.py` and `scripts/run_clustering.py` — a
 **diagnostic, not a ranker**. It does not subclass `Recommender` or join any
 leaderboard; it asks whether the SBERT semantic space has *structure*. Output:
 [results/cluster_report.md](https://github.com/sandeep-jay/course-recommender-lab/blob/main/results/cluster_report.md) and a subject-colored
@@ -195,7 +195,7 @@ Three clusterings of the 11,073 MiniLM vectors (`all-MiniLM-L6-v2`):
 ### Why this matters for the rankers
 
 The smoothness is *why* semantic similarity works for free-text and related-but-
-not-twin queries (Phase 3) yet barely beats lexical on near-duplicate twins: in a
+not-twin queries (the SBERT semantic-vector stage) yet barely beats lexical on near-duplicate twins: in a
 continuous space, "close" is graded, not categorical. It also frames the
 coverage/diversity numbers — with no hard cluster walls, top-k lists can wander a
 neighborhood rather than collapse onto a clique.
@@ -203,16 +203,16 @@ neighborhood rather than collapse onto a clique.
 ### Honest limitations
 
 - **Projector fell back to t-SNE.** `umap-learn` is in the optional `viz` extra
-  but not installed here, so the map is t-SNE (also a valid plan §2.7 choice);
+  but not installed here, so the map is t-SNE (also a valid projection choice);
   UMAP would give a faster, more global-structure-faithful layout.
 - **Cluster count is a chosen knob.** k=100 is a coarse default (242 subjects);
   the coherence numbers shift with k. This is a shape probe, not a tuned model.
 - **Silhouette is sampled** (2,000 points) for tractability — a point estimate,
   not a CI.
 
-## Phase 5 / B.5 — metadata fusion (weighted one-hot facets ⊕ TF-IDF)
+## Metadata fusion (weighted one-hot facets ⊕ TF-IDF)
 
-Phase 5's Track-B ranker (`recommenders/metadata.py`) fuses a TF-IDF text block
+The metadata-fusion stage's ranker (`recommenders/metadata.py`) fuses a TF-IDF text block
 with a one-hot **subject + department + level + units** block under a single
 weight λ (`text_weight`), L2-normalizing each block so the fused score is
 `λ²·cos_text + (1−λ)²·cos_meta`. λ=1.0 is bit-for-bit the `tfidf` baseline, so any
@@ -241,7 +241,7 @@ departments** — a cross-listing *is* the same course offered under two subject
 codes. So the one-hot subject/department block, which raises similarity for
 same-subject courses, actively **pushes a twin away from its seed**. Fusion can
 only hurt the one lens that rewards twins ranking each other. This is the same
-tension the graph rung hit from the structural side ([Phase 5 graph](#phase-5-course-graph-ppr-on-a-held-out-cross-listing-edge-split):
+tension the graph technique hit from the structural side ([the graph stage](#the-course-graph-ppr-on-a-held-out-cross-listing-edge-split):
 "cross-listed twins frequently span subjects"); metadata fusion quantifies it
 from the content side.
 
@@ -262,9 +262,9 @@ from the content side.
   the gradient is monotone toward pure text, so finer resolution wouldn't change
   the direction.
 
-## Phase 5 — course graph (PPR) on a held-out cross-listing edge split
+## The course graph — PPR on a held-out cross-listing edge split
 
-Phase 5 adds the graph rung (`recommenders/graph.py`) — the one technique allowed
+The graph stage adds the graph technique (`recommenders/graph.py`) — the one technique allowed
 to read `Cross-Listed Course(s)` — and the machinery that keeps that read
 leakage-free: a 30% **held-out edge split** (`eval.split_crosslist_edges`) and a
 third leaderboard, [results/leaderboard_heldout.md](https://github.com/sandeep-jay/course-recommender-lab/blob/main/results/leaderboard_heldout.md),
@@ -323,9 +323,9 @@ content row).
   and needs **zero new dependencies** — node2vec was rejected to avoid a heavy
   `gensim` dependency for a method whose ceiling is structural, not encoder-bound.
 
-## Phase 4 — retrieve → cross-encoder rerank → MMR (+ a harder judged set)
+## Retrieve → cross-encoder rerank → MMR (+ a harder judged set)
 
-Two things landed together: the **Phase 4 rerank rung** (a MiniLM bi-encoder
+Two things landed together: the **rerank technique** (a MiniLM bi-encoder
 retrieves the top 50, the `ms-marco-MiniLM-L-6-v2` cross-encoder rescores, MMR
 re-orders with a λ knob) and a **2× expansion of the judged set** (22 → 44
 paraphrase-extreme queries, 309 labels over 80 subjects). The leaderboard is now
@@ -352,7 +352,7 @@ relevant courses' titles, which is exactly where lexical falls and meaning wins)
 
 ### The MMR knob works — diversity moves with λ
 
-The phase-4 acceptance criterion (plan §5) is that the intra-list diversity metric
+The rerank stage's acceptance criterion is that the intra-list diversity metric
 moves with λ. It does, monotonically, on **both** lenses:
 
 | λ | Cross-listing NDCG@10 | Cross-listing diversity | Free-text NDCG@10 | Free-text diversity |
@@ -379,14 +379,14 @@ versus sub-ms for the bi-encoder. Two reasons:
    1; reranking only the top 50 can demote it but rarely promote a better one, so
    the cross-encoder mostly *loses* NDCG it cannot regain.
 
-The value Phase 4 delivers is therefore the **diversity control**, not a relevance
+The value the rerank stage delivers is therefore the **diversity control**, not a relevance
 gain. A domain-tuned or fine-tuned cross-encoder might reverse this — out of scope
 for this phase, and a candidate next lever (see [HANDOFF](https://github.com/sandeep-jay/course-recommender-lab/blob/main/HANDOFF.md)).
 
-## Phase 3 — semantic vectors (SBERT) + the judged free-text lens
+## Semantic vectors (SBERT) + the judged free-text lens
 
 Two things landed together: the **judged free-text lens** (the first scoring of
-`recommend_by_text`, plan §3 lens 3) and the **semantic rung** (local SBERT, plus
+`recommend_by_text`, the free-text evaluation lens) and the **semantic technique** (local SBERT, plus
 an API backend that skips with no key). The leaderboard is now **10 rows** across
 **two** files — `leaderboard.md` (cross-listing) and `leaderboard_text.md`
 (judged queries, 22 hand-labeled).
@@ -418,13 +418,13 @@ free-text lens does — the same 10 techniques now spread across a wide range:
    useless on `recommend_by_text`, despite topping/midding the cross-listing lens.
    Projecting a 2–4 word query through 50 topics leaves almost no signal; LSA at
    200 components survives better (0.32) but is still far behind. This is the
-   honest counterweight to Phase 2's interpretability story: those models are for
+   honest counterweight to the topic-model stage's interpretability story: those models are for
    reading the catalog, not for free-text retrieval.
 3. **Semantic leads — but not decisively.** SBERT MiniLM has the top point
    estimate on *both* lenses (xlist 0.971, text 0.617) and the only perfect
    cross-listing Recall@10 (1.000). Yet on free text its lead over the best
    TF-IDF config (0.611) is **well within the CI** — a ~0.006 gap on a 22-query
-   set. We do not crown it (plan §6.4).
+   set. We do not crown it (the gap is within the CI).
 4. **Bigger ≠ better here.** MPNet (768-d, ~170 s fit) did not beat MiniLM (384-d,
    ~9 s fit) on either lens. MiniLM is the better speed/quality trade; the larger
    model isn't justified by these numbers.
@@ -438,9 +438,9 @@ free-text lens does — the same 10 techniques now spread across a wide range:
   (~±0.11), so no top-method difference is significant. The set is also one
   labeler's judgment on one catalog snapshot, and deliberately *not* paraphrase-
   extreme — which is likely why semantic doesn't pull away from lexical. A larger,
-  harder query set is the clearest next lever. **(Resolved in Phase 4: the set grew
+  harder query set is the clearest next lever. **(Resolved in the rerank stage: the set grew
   to 44 paraphrase-extreme queries and the semantic lead is now significant — see
-  the Phase 4 section above.)**
+  the rerank stage above.)**
 - **The API embedding row is unmeasured** — skipped + flagged (no `OPENAI_API_KEY`;
   the repo runs local-only). Its graceful-skip path is tested; its live path is
   not.
@@ -450,7 +450,7 @@ free-text lens does — the same 10 techniques now spread across a wide range:
 \* Bootstrap CI columns abbreviated in this digest; see `leaderboard_text.csv`
 for the full table.
 
-## Phase 2 — topic models (LSA, NMF, LDA)
+## Topic models (LSA, NMF, LDA)
 
 Same cross-listing lens (1,072 seeds), same primary metric. Topic models drop
 into the existing harness unchanged; the leaderboard is now 8 rows.
@@ -465,8 +465,8 @@ into the existing harness unchanged; the leaderboard is now 8 rows.
 
 1. **Still no significant winner — and topic models don't beat lexical.** NMF has
    the highest point estimate of all 8 techniques (0.9604), but its CI overlaps
-   every lexical config and both other topic models. As the methodology predicts
-   (plan §6.2), the cross-listing lens *can't* reward topic models' real strength:
+   every lexical config and both other topic models. As the methodology predicts,
+   the cross-listing lens *can't* reward topic models' real strength:
    twins already share near-identical text, so projecting to `k` topics can only
    blur a signal lexical methods already nail. This lens validates that the topic
    recommenders are correct, not that they're better.
@@ -488,12 +488,12 @@ into the existing harness unchanged; the leaderboard is now 8 rows.
 - **The free-text gap is now the binding constraint.** Topic and (coming)
   semantic methods are supposed to win precisely on synonym/paraphrase queries —
   exactly what `recommend_by_text` does and what the still-missing judged-query
-  set (plan §3 lens 3) would measure. Until that lens exists, every NDCG number
+  set (the free-text lens) would measure. Until that lens exists, every NDCG number
   here describes item-to-item similarity on near-duplicate text only.
 - **Topic count is unswept.** k was fixed (LSA 200, NMF/LDA 50), not tuned; the
   point estimates above shouldn't be read as each method's ceiling.
 
-## Phase 1 — lexical baselines (TF-IDF, BM25)
+## Lexical baselines (TF-IDF, BM25)
 
 Evaluated on the **cross-listing lens** (1,072 in-catalog seeds) with a
 same-subject sanity floor. Primary metric is NDCG@10 with a 95% percentile
@@ -511,7 +511,7 @@ bootstrap CI.
 
 1. **No statistically significant winner.** All five configs sit at
    NDCG@10 ≈ 0.95–0.96 with **fully overlapping CIs**. Per the methodology
-   (plan §6.4) we do not crown a winner on a sub-CI gap — the ranking by point
+   we do not crown a winner on a sub-CI gap — the ranking by point
    estimate is noise.
 2. **The lens is near-trivial for lexical methods.** Cross-listed twins share
    almost identical title+description text, so any bag-of-words model retrieves
@@ -528,7 +528,7 @@ bootstrap CI.
 ### Honest limitations
 
 - **Free-text mode is unscored.** `recommend_by_text` runs, but there is no
-  ground truth for it yet (needs the judged-query set, plan §3 lens 3). Until
+  ground truth for it yet (needs the judged-query set — the free-text lens). Until
   then, NDCG numbers describe item-to-item similarity only.
 - **Coverage ≈ 0.43.** Across all 1,072 seeds' top-10, lexical methods surface
   ~43% of the catalog — a popularity/redundancy skew worth watching as richer

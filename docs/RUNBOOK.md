@@ -15,8 +15,8 @@ technique obeys, see [roadmap/recommender_plan.md](roadmap/recommender_plan.md).
 - **Python 3.11+** (the package requires `>=3.11`).
 - **Apple Silicon note (this machine):** PyTorch uses the **MPS** backend; keep
   `fp16=False` (the recommenders already do). No CUDA needed.
-- **No API key is required** to run the repo through Phase 6. The LLM phases use a
-  **local** Ollama daemon (no key, no cost); the one API rung (OpenAI embeddings) is
+- **No API key is required** to run everything except the LLM stage. The LLM stage uses a
+  **local** Ollama daemon (no key, no cost); the one API technique (OpenAI embeddings) is
   optional and skips cleanly when no key is set.
 - Everything is **reproducible**: the global seed is `RANDOM_SEED = 42`.
 
@@ -24,20 +24,21 @@ technique obeys, see [roadmap/recommender_plan.md](roadmap/recommender_plan.md).
 
 ## 1. Install tiers
 
-The base install runs Phases 0–2 (data + lexical + topic models). Heavy or
-phase-specific dependencies are **optional extras** — install only what you need.
+The base install runs the data foundation, lexical baselines, and topic model
+(data + lexical + topic models). Heavy or stage-specific dependencies are
+**optional extras** — install only what you need.
 
 ```bash
 python -m venv .venv && source .venv/bin/activate
-pip install -e ".[dev]"           # base + pytest/ruff/black — Phases 0–2 + tests
+pip install -e ".[dev]"           # base + pytest/ruff/black — data/lexical/topic + tests
 ```
 
 | Extra | Pulls in | Unlocks | Install |
 |---|---|---|---|
 | `dev` | pytest, ruff, black | tests + lint/format | `pip install -e ".[dev]"` |
-| `semantic` | sentence-transformers, torch, faiss-cpu | Phase 3 SBERT rungs, the cross-encoder reranker, clustering, **the UI's semantic views** | `pip install -e ".[semantic]"` |
-| `viz` | matplotlib, umap-learn | Phase 6 map figure; the UI Map view's **faster UMAP** projector (else t-SNE) | `pip install -e ".[viz]"` |
-| `ui` | streamlit | the Phase 8 app | `pip install -e ".[ui]"` |
+| `semantic` | sentence-transformers, torch, faiss-cpu | the SBERT semantic techniques, the cross-encoder reranker, clustering, **the UI's semantic views** | `pip install -e ".[semantic]"` |
+| `viz` | matplotlib, umap-learn | the 2-D map figure; the UI Map view's **faster UMAP** projector (else t-SNE) | `pip install -e ".[viz]"` |
+| `ui` | streamlit | the Streamlit UI app | `pip install -e ".[ui]"` |
 
 **Recommended combos**
 ```bash
@@ -46,7 +47,7 @@ pip install -e ".[dev,semantic,viz,ui]"   # the lot (run the full UI incl. fast 
 ```
 
 Techniques **degrade gracefully** when an extra is absent: without `semantic`, the
-SBERT/API/rerank rungs skip and note it (they never hard-fail the suite); without
+SBERT/API/rerank techniques skip and note it (they never hard-fail the suite); without
 `umap-learn`, projections fall back to scikit-learn t-SNE.
 
 ---
@@ -97,12 +98,12 @@ python scripts/run_eval.py --bootstrap 100  # faster CI estimate (lower is quick
   split the **graph** technique may be scored on; the whole sweep is re-scored here
   for a fair comparison).
 
-LLM rungs are scored from a **warm cache** here (see 3c) so this stays fast; if the
+LLM techniques are scored from a **warm cache** here (see 3c) so this stays fast; if the
 cache is cold and Ollama is down they skip and note it. SBERT artifacts load from
 `artifacts/` rather than re-encoding (first ever run encodes ~11k docs, ~10s).
 
 ### 3b. Clustering diagnostic + 2-D map — `scripts/run_clustering.py`
-Phase 6. Clusters the cached SBERT embeddings (KMeans / agglomerative / HDBSCAN) and
+The clustering stage. Clusters the cached SBERT embeddings (KMeans / agglomerative / HDBSCAN) and
 projects them to 2-D. A **diagnostic, not a recommender** — never on the leaderboard.
 
 ```bash
@@ -115,8 +116,9 @@ python scripts/run_clustering.py --n-clusters 150 --min-cluster-size 20
 Needs `semantic` (embeddings); the figure needs `viz` (matplotlib; UMAP optional).
 
 ### 3c. LLM tag enrichment — `scripts/enrich_catalog.py`
-Phase 7. The slow, explicit pass that populates the LLM **tag cache** via local
-Ollama, split out so `run_eval.py` stays fast. Requires a running Ollama (see §5).
+The LLM stage. The slow, explicit pass that populates the LLM **tag cache** via local
+Ollama, split out so `run_eval.py` stays fast. Requires a running Ollama (see
+[§5 Ollama](#5-ollama-the-local-llm-no-api-key)).
 
 ```bash
 python scripts/enrich_catalog.py                 # enrich the eval subset (default)
@@ -127,8 +129,9 @@ Writes the tag cache under `artifacts/llmcache/<model>/`. Re-running serves warm
 entries with no new calls.
 
 ### 3d. "Why this fits" explanations — `scripts/explain_recs.py`
-Phase 7c. Drives the `RecommendationExplainer` over the SBERT base — validates the
-rung live and warms the explanation cache for the UI. Requires Ollama (§5).
+The explainer step of the LLM stage. Drives the `RecommendationExplainer` over the
+SBERT base — validates the technique live and warms the explanation cache for the UI.
+Requires Ollama (see [§5 Ollama](#5-ollama-the-local-llm-no-api-key)).
 
 ```bash
 python scripts/explain_recs.py --seed "COMPSCI 189"            # item-to-item mode
@@ -153,7 +156,7 @@ Open <http://localhost:8501>. Four views:
 - **Compare** — one query through two techniques side by side.
 - **Leaderboard** — the main board + the graph's held-out board (clearly labeled "not
   comparable"), with a `family` column and hover-for-definition column tooltips, plus
-  the static Phase 6 map.
+  the static 2-D map.
 - **Map** — a live, interactive 2-D projection; pick a seed and its top-k SBERT
   recommendations light up. UMAP/t-SNE toggle; the projection is cached to
   `artifacts/map/` (≈12 s cold on t-SNE over ~11k vectors, instant warm).
@@ -164,7 +167,7 @@ Open <http://localhost:8501>. Four views:
 ### 4a. Deploy the UI (Docker)
 
 A `Dockerfile` packages the UI as a **warm, offline, CPU-only** image (ADR-0013):
-the processed catalog, the leaderboard, the six UI rungs' artifacts + the Map
+the processed catalog, the leaderboard, the six UI techniques' artifacts + the Map
 projection, and the default MiniLM weights are all baked in, so the container starts
 instantly with no first-load encode and no network.
 
@@ -175,13 +178,14 @@ docker run --rm -p 8501:8501 course-recommender-lab      # then open http://loca
 
 > **Prerequisite — a warm repo.** The build `COPY`s `data/processed/courses.parquet`
 > and `artifacts/`, which are **gitignored** (not in a fresh clone). Build from a repo
-> that has already run the pipeline + eval (§2–3), so those exist on disk. The
+> that has already run the pipeline + eval (see [§2 Data setup](#2-data-setup) and
+[§3 The pipeline](#3-the-pipeline-script-by-script)), so those exist on disk. The
 > `.dockerignore` then ships only the runtime subset (~150 MB of artifacts; the raw
-> CSV, regenerable caches, and unused rungs are excluded).
+> CSV, regenerable caches, and unused techniques are excluded).
 
 What works offline in the container: course-to-course, Compare, Map, the Leaderboard,
 and **free-text queries** (MiniLM is pre-pulled). What still needs network/Ollama on
-demand: the **SBERT MPNet** rung (its weights download on first use) and the opt-in
+demand: the **SBERT MPNet** technique (its weights download on first use) and the opt-in
 "why this fits" line (needs an Ollama daemon — not reachable from inside the container
 unless you point `OLLAMA_HOST` at a host-side daemon).
 
@@ -199,7 +203,7 @@ per technique family (`01`–`08`) plus a data/eval foundation (`00`) and a
 cross-technique synthesis (`09`).
 
 ```bash
-pip install -e ".[notebooks,semantic]"          # tooling + the semantic rungs
+pip install -e ".[notebooks,semantic]"          # tooling + the semantic techniques
 
 # Interactive: pair the .py source <-> .ipynb, open in Jupyter
 jupytext --to ipynb notebooks/01_lexical.py
@@ -223,7 +227,7 @@ pytest --nbmake --nbmake-timeout=600 notebooks/*.ipynb
 
 ## 5. Ollama (the local LLM, no API key)
 
-The Phase 7 / 7c rungs (tags, reranker, explainer) call a **local** Ollama daemon —
+The LLM stage's techniques (tags, reranker, explainer) call a **local** Ollama daemon —
 no key, no cost, no network beyond `localhost:11434`. Everything else runs without it.
 
 ```bash
@@ -235,7 +239,7 @@ ollama pull qwen3:32b          # optional, used via --model
 ```
 - Default model: `qwen3:8b` (`config.DEFAULT_LLM_MODEL`).
 - Override the host with `OLLAMA_HOST` (default `http://localhost:11434`).
-- **Graceful degradation:** if the daemon is down, the tag/rerank rungs skip with a
+- **Graceful degradation:** if the daemon is down, the tag/rerank techniques skip with a
   note, the explainer returns `None` (UI omits the line), and caches still serve warm
   entries — nothing hard-fails.
 
@@ -245,14 +249,14 @@ ollama pull qwen3:32b          # optional, used via --model
 
 | Model | Used by | Source / how to get | Needs |
 |---|---|---|---|
-| `all-MiniLM-L6-v2` | SBERT (default, top rung) + the Map/cluster projections | Hugging Face — auto-downloaded on first use | `semantic` |
+| `all-MiniLM-L6-v2` | SBERT (default, top technique) + the Map/cluster projections | Hugging Face — auto-downloaded on first use | `semantic` |
 | `all-mpnet-base-v2` | SBERT (larger variant) | Hugging Face — auto-downloaded | `semantic` |
-| `cross-encoder/ms-marco-MiniLM-L-6-v2` | the rerank rung | Hugging Face — auto-downloaded | `semantic` |
-| `text-embedding-3-small` | the **optional** API embedding rung | OpenAI API | `openai` SDK + `OPENAI_API_KEY` env var |
+| `cross-encoder/ms-marco-MiniLM-L-6-v2` | the rerank technique | Hugging Face — auto-downloaded | `semantic` |
+| `text-embedding-3-small` | the **optional** API embedding technique | OpenAI API | `openai` SDK + `OPENAI_API_KEY` env var |
 | `qwen3:8b` | LLM tags / reranker / explainer (default) | `ollama pull qwen3:8b` | Ollama daemon |
-| `qwen3:32b` | the same rungs via `--model` (optional) | `ollama pull qwen3:32b` | Ollama daemon |
+| `qwen3:32b` | the same techniques via `--model` (optional) | `ollama pull qwen3:32b` | Ollama daemon |
 
-Hugging Face models download once and cache in `~/.cache/huggingface/`. The API rung
+Hugging Face models download once and cache in `~/.cache/huggingface/`. The API technique
 reads `OPENAI_API_KEY` from the environment **only** — never from a file, never
 hardcoded — and skips when unset.
 
@@ -293,13 +297,13 @@ serving a stale layout.
 | Symptom | Cause | Fix |
 |---|---|---|
 | `ModuleNotFoundError: No module named 'app'` | ran `streamlit run` from a subdirectory | run from the **repo root** |
-| SBERT / rerank / API rungs missing from the leaderboard | `semantic` extra not installed (or no `OPENAI_API_KEY` for the API rung) | `pip install -e ".[semantic]"`; set the key for the API rung |
+| SBERT / rerank / API techniques missing from the leaderboard | `semantic` extra not installed (or no `OPENAI_API_KEY` for the API technique) | `pip install -e ".[semantic]"`; set the key for the API technique |
 | Map "UMAP (fast)" actually uses t-SNE | `umap-learn` not installed | `pip install -e ".[viz]"` (the caption always names the projector used) |
 | LLM tags/rerank skipped; "why this fits" shows `—` | Ollama daemon down or model not pulled | `ollama serve` + `ollama pull qwen3:8b` |
 | First UI interaction / `run_eval` is slow | cold caches (encoding ~11k embeddings, or a cold projection) | one-time; subsequent runs load from `artifacts/` |
 | `run_eval` is slow on the CI step | bootstrap resamples | `--bootstrap 100` for a quick pass |
 | Leaderboard looks stale | a technique or the eval harness changed | re-run `python scripts/run_eval.py` (never hand-edit the boards) |
-| `docker build` fails on `COPY data/...` or `artifacts/...` | building from a cold clone — those are gitignored | run the pipeline + eval first (§2–3) so the warm files exist on disk |
-| Docker UI: MPNet rung slow / why-line shows `—` | MPNet weights download on first use; Ollama isn't reachable from the container | expected — MiniLM is offline; point `OLLAMA_HOST` at a host daemon for the why-line |
+| `docker build` fails on `COPY data/...` or `artifacts/...` | building from a cold clone — those are gitignored | run the pipeline + eval first ([§2 Data setup](#2-data-setup), [§3 The pipeline](#3-the-pipeline-script-by-script)) so the warm files exist on disk |
+| Docker UI: MPNet technique slow / why-line shows `—` | MPNet weights download on first use; Ollama isn't reachable from the container | expected — MiniLM is offline; point `OLLAMA_HOST` at a host daemon for the why-line |
 | Notebook: `No module named 'nbtools'` in an editor | static analysis doesn't know the notebook's cwd | harmless — `nbtools.py` resolves at runtime (the notebook runs from `notebooks/`); nbmake confirms it |
 | `pytest --nbmake` times out on `04`/`08` | cross-encoder / LLM cells on CPU | raise `--nbmake-timeout`; they sample seeds to stay fast, but CPU-only is slower than MPS |

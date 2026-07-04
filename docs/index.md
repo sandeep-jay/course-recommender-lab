@@ -10,6 +10,11 @@ scores them all through **one evaluation harness**, and ranks them on **one
 leaderboard**. The interesting results are the honest ones: three techniques that
 *should* have won and didn't.
 
+!!! tip "Two ways in"
+    **Here to learn?** Follow the guided path in **[Start Here](learn.md)** — the core
+    idea, the data, then each technique built from scratch. **Here to evaluate the work?**
+    The **[Reviewer Guide](reviewer-guide.md)** is the five-minute skim.
+
 <div class="grid cards" markdown>
 
 - :material-flash-outline: **[Reviewer Guide](reviewer-guide.md)**

@@ -101,45 +101,50 @@ extra:
       link: https://github.com/sandeep-jay/course-recommender-lab
       name: Source on GitHub
 
+# The nav is organized into audience lanes: a learner path (Start Here → Learn) and a
+# reviewer path (Reviewer Guide → Results), over shared Reference material. See ADR-0015.
 nav:
   - Home: index.md
+  - Start Here: learn.md
   - Reviewer Guide: reviewer-guide.md
-  - The Data: data.md
-  - Architecture: ARCHITECTURE.md
-  - Results:
-      - Results & Findings: RESULTS.md
+  - Learn the techniques:
+      - The Data: data.md
+      - Architecture: ARCHITECTURE.md
+      - Teaching Notebooks:
+          - Overview: notebooks/index.md
+          - 00 · Data & Eval foundation: notebooks/00_data_and_eval.ipynb
+          - 01 · Lexical (TF-IDF, BM25): notebooks/01_lexical.ipynb
+          - 02 · Topic models (LSA, NMF, LDA): notebooks/02_topics.ipynb
+          - 03 · Semantic vectors (SBERT): notebooks/03_embeddings.ipynb
+          - 04 · Retrieve → rerank → MMR: notebooks/04_rerank.ipynb
+          - 05 · Metadata fusion: notebooks/05_metadata.ipynb
+          - 06 · Course graph (PPR): notebooks/06_graph.ipynb
+          - 07 · Clustering & 2-D map: notebooks/07_clustering.ipynb
+          - 08 · LLM enrichment & rerank: notebooks/08_llm.ipynb
+          - 09 · Leaderboard synthesis: notebooks/09_leaderboard.ipynb
+  - Results & Findings:
+      - Leaderboard & Results: RESULTS.md
       - Technique Tradeoffs: TRADEOFFS.md
-  - Teaching Notebooks:
-      - Overview: notebooks/index.md
-      - 00 · Data & Eval foundation: notebooks/00_data_and_eval.ipynb
-      - 01 · Lexical (TF-IDF, BM25): notebooks/01_lexical.ipynb
-      - 02 · Topic models (LSA, NMF, LDA): notebooks/02_topics.ipynb
-      - 03 · Semantic vectors (SBERT): notebooks/03_embeddings.ipynb
-      - 04 · Retrieve → rerank → MMR: notebooks/04_rerank.ipynb
-      - 05 · Metadata fusion: notebooks/05_metadata.ipynb
-      - 06 · Course graph (PPR): notebooks/06_graph.ipynb
-      - 07 · Clustering & 2-D map: notebooks/07_clustering.ipynb
-      - 08 · LLM enrichment & rerank: notebooks/08_llm.ipynb
-      - 09 · Leaderboard synthesis: notebooks/09_leaderboard.ipynb
-  - Case Study: case-study.md
-  - Operations (Runbook): RUNBOOK.md
-  - Decisions (ADRs):
-      - Index: adr/README.md
-      - 0001 · Duplicate course IDs: adr/0001-duplicate-course-ids.md
-      - 0002 · Eval harness design: adr/0002-eval-harness-design.md
-      - 0003 · Judged-query lens: adr/0003-judged-query-lens.md
-      - 0004 · Semantic vectors: adr/0004-semantic-vectors.md
-      - 0005 · Rerank + MMR: adr/0005-rerank-mmr.md
-      - 0006 · Graph held-out split: adr/0006-graph-heldout.md
-      - 0007 · Clustering as diagnostic: adr/0007-clustering-diagnostic.md
-      - 0008 · Metadata fusion: adr/0008-metadata-fusion.md
-      - 0009 · LLM enrichment (Ollama): adr/0009-llm-enrichment-ollama.md
-      - 0010 · LLM reranker: adr/0010-llm-reranker.md
-      - 0011 · LLM explainer: adr/0011-llm-explainer.md
-      - 0012 · Streamlit UI: adr/0012-streamlit-ui.md
-      - 0013 · Warm Docker image: adr/0013-deploy-warm-docker-image.md
-      - 0014 · Teaching notebooks: adr/0014-teaching-notebooks.md
-      - 0015 · Docs site + rendered notebooks: adr/0015-docs-site.md
-  - Roadmap: roadmap/recommender_plan.md
-  - Changelog: changelog.md
-  - About: about.md
+      - Case Study: case-study.md
+  - Reference:
+      - Operations (Runbook): RUNBOOK.md
+      - Decisions (ADRs):
+          - Index: adr/README.md
+          - 0001 · Duplicate course IDs: adr/0001-duplicate-course-ids.md
+          - 0002 · Eval harness design: adr/0002-eval-harness-design.md
+          - 0003 · Judged-query lens: adr/0003-judged-query-lens.md
+          - 0004 · Semantic vectors: adr/0004-semantic-vectors.md
+          - 0005 · Rerank + MMR: adr/0005-rerank-mmr.md
+          - 0006 · Graph held-out split: adr/0006-graph-heldout.md
+          - 0007 · Clustering as diagnostic: adr/0007-clustering-diagnostic.md
+          - 0008 · Metadata fusion: adr/0008-metadata-fusion.md
+          - 0009 · LLM enrichment (Ollama): adr/0009-llm-enrichment-ollama.md
+          - 0010 · LLM reranker: adr/0010-llm-reranker.md
+          - 0011 · LLM explainer: adr/0011-llm-explainer.md
+          - 0012 · Streamlit UI: adr/0012-streamlit-ui.md
+          - 0013 · Warm Docker image: adr/0013-deploy-warm-docker-image.md
+          - 0014 · Teaching notebooks: adr/0014-teaching-notebooks.md
+          - 0015 · Docs site + rendered notebooks: adr/0015-docs-site.md
+      - Roadmap: roadmap/recommender_plan.md
+      - Changelog: changelog.md
+      - About: about.md
