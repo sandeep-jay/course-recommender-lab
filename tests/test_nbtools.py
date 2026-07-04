@@ -58,7 +58,7 @@ def test_top_k_overlap_nonpositive_k() -> None:
 
 def test_plot_metric_ci_draws_one_bar_per_label() -> None:
     """One horizontal bar and one y-tick label is drawn per technique."""
-    import matplotlib
+    matplotlib = pytest.importorskip("matplotlib")  # optional viz/notebooks dep
 
     matplotlib.use("Agg")  # headless, no GUI backend
     labels = ["tfidf", "bm25"]

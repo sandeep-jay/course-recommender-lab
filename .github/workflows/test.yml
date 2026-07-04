@@ -1,0 +1,69 @@
+name: tests + lint
+
+# Gates every push to main (and every PR) on the test suite, linting, and a check that
+# the published teaching notebooks aren't stale. The suite runs against a tiny synthetic
+# catalog fixture (tests/conftest.py), so it needs neither the gitignored real catalog
+# nor heavy ML deps — the SBERT/torch and matplotlib tests skip cleanly under the lean
+# `[dev]` install (they are exercised locally with the full extras). See docs/RUNBOOK.md.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Full history so the notebook render-freshness check can compare the
+          # last-commit timestamps of each .py source and its .ipynb render.
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install (dev extra)
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Ruff
+        run: ruff check .
+
+      - name: Black
+        run: black --check .
+
+      - name: Notebook render freshness
+        run: python scripts/check_notebook_render_fresh.py
+
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install (dev extra)
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Pytest
+        run: pytest

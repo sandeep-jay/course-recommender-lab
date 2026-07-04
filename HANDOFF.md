@@ -28,6 +28,13 @@ diagram** (compact top-down + a five-step prose walkthrough + a technique table)
 site-wide prose pass that replaced roadmap-internal shorthand (`Phase N`, `Track B.N`,
 `plan §N`, `rung`) with plain descriptive language. Site builds `--strict` clean.
 
+**CI now gates code, not just docs.** A new `test.yml` runs `ruff` + `black --check`, a
+**notebook render-freshness check** (`scripts/check_notebook_render_fresh.py` /
+`make docs-notebooks-check`), and `pytest` on every push and PR. The suite runs on the
+synthetic fixture under a lean `[dev]` install (192 passed / ~19 skipped — SBERT/torch/
+matplotlib tests skip in CI, exercised locally with full extras), closing the prior gap
+where nothing ran the tests in CI.
+
 ## Next task
 
 Optional polish, in priority order: (1) **Stage 3** — a standalone RecSys concept primer

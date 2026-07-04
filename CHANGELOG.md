@@ -6,6 +6,19 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 ## [Unreleased]
 
 ### Added
+- **CI test + lint workflow (`.github/workflows/test.yml`).** Until now nothing ran the
+  test suite in CI — only the docs build. This gates every push to `main` and every PR on
+  a `lint` job (`ruff` + `black --check` + the notebook-freshness check below) and a `test`
+  job (`pytest`). The suite runs against the synthetic-catalog fixture, so it needs neither
+  the gitignored real catalog nor heavy ML deps: SBERT/torch and matplotlib tests skip
+  cleanly under the lean `[dev]` install (192 passed / ~19 skipped), verified in a
+  from-scratch `[dev]`-only venv.
+- **Notebook render-freshness check (`scripts/check_notebook_render_fresh.py`, `make
+  docs-notebooks-check`).** Guards against the one drift the design can't auto-fix: the
+  published `docs/notebooks/*.ipynb` render is a manual `make docs-notebooks` step, so a
+  `.py` edit can leave it stale. The check fails when a notebook source was committed after
+  its render, and runs in the CI `lint` job (with full git history). Git-timestamp based —
+  it flags a forgotten re-render, not a content diff.
 - **"Start Here" learning path (`docs/learn.md`)** — a guided on-ramp for the learner
   audience: the core idea (content-based vs collaborative, and why this catalog forces
   content-based), then one ordered route — data → evaluation foundation → the eight
@@ -39,6 +52,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
   clickable links; RESULTS headings were made descriptive-first with their anchors updated.
 
 ### Fixed
+- **Guarded the matplotlib-dependent nbtools test with `importorskip`.** `test_nbtools.py::
+  test_plot_metric_ci_draws_one_bar_per_label` imported `matplotlib` (an optional
+  `viz`/`notebooks` dep) unguarded, so it *failed* rather than skipped under a lean install
+  — matching the existing `test_cluster.py` guard fixes the inconsistency and lets the
+  suite run green in the `[dev]`-only CI.
 - **Pinned Pygments below 2.19 in the docs toolchain to keep the docs build reproducible.**
   Pygments 2.19+ changed `HtmlFormatter` so pymdown-extensions' highlighter crashes with
   `filename=None`; Pygments is a transitive dep, so an unconstrained resolve floated it to
