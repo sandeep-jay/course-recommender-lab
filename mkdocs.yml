@@ -145,6 +145,7 @@ nav:
           - 0013 · Warm Docker image: adr/0013-deploy-warm-docker-image.md
           - 0014 · Teaching notebooks: adr/0014-teaching-notebooks.md
           - 0015 · Docs site + rendered notebooks: adr/0015-docs-site.md
+          - 0016 · CI test gating + render-freshness: adr/0016-ci-test-gating.md
       - Roadmap: roadmap/recommender_plan.md
       - Changelog: changelog.md
       - About: about.md

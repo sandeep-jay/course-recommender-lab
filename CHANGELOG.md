@@ -11,8 +11,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
   a `lint` job (`ruff` + `black --check` + the notebook-freshness check below) and a `test`
   job (`pytest`). The suite runs against the synthetic-catalog fixture, so it needs neither
   the gitignored real catalog nor heavy ML deps: SBERT/torch and matplotlib tests skip
-  cleanly under the lean `[dev]` install (192 passed / ~19 skipped), verified in a
-  from-scratch `[dev]`-only venv.
+  cleanly under the lean `[dev]` install (192 passed / ~19 skipped locally; 185/26 on the
+  runner), verified in a from-scratch `[dev]`-only venv. Decision recorded in **ADR-0016**.
 - **Notebook render-freshness check (`scripts/check_notebook_render_fresh.py`, `make
   docs-notebooks-check`).** Guards against the one drift the design can't auto-fix: the
   published `docs/notebooks/*.ipynb` render is a manual `make docs-notebooks` step, so a
