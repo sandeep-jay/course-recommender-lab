@@ -3,7 +3,7 @@
 Technique × {quality, speed, interpretability, cost, cold-start, complexity},
 with a one-line "when to prefer it". Filled in as each phase lands; for measured
 numbers see [RESULTS.md](RESULTS.md) and the
-[leaderboard](../results/leaderboard.md).
+[leaderboard](https://github.com/sandeep-jay/course-recommender-lab/blob/main/results/leaderboard.md).
 
 | Technique | Quality (cross-list) | Speed | Interpretability | Cost | Cold-start | Code complexity | Prefer when |
 |---|---|---|---|---|---|---|---|
@@ -73,7 +73,7 @@ numbers see [RESULTS.md](RESULTS.md) and the
 
 - **Graph-specific (Phase 5).** The graph is the one technique allowed to read
   `Cross-Listed Course(s)`, so it is scored only on a **held-out edge split**
-  (its own leaderboard, [leaderboard_heldout.md](../results/leaderboard_heldout.md);
+  (its own leaderboard, [leaderboard_heldout.md](https://github.com/sandeep-jay/course-recommender-lab/blob/main/results/leaderboard_heldout.md);
   numbers there are a *harder* task than the full-truth file and not comparable
   across files). The honest result: personalized-PageRank proximity recovers only
   ~23% of withheld twins (NDCG@10 0.131) while text methods, which never needed

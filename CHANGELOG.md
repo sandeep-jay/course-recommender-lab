@@ -6,6 +6,28 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 ## [Unreleased]
 
 ### Added
+- **Documentation site — MkDocs Material published to GitHub Pages (ADR-0015).**
+  A navigable site matching the portfolio's two published repos: `mkdocs.yml`
+  (Material, `strict: true`, mermaid, `edit_uri`), `requirements-docs.txt`, a `[docs]`
+  extra, and `.github/workflows/docs.yml` (build `--strict` + Pages-artifact deploy —
+  one-time Settings → Pages → Source = "GitHub Actions"). Five new reviewer/learner
+  pages (`index`, `reviewer-guide`, `ARCHITECTURE`, `case-study`, `about`) plus a
+  `notebooks/` index and a `changelog` that includes the repo-root `CHANGELOG.md`
+  verbatim; existing RESULTS/TRADEOFFS/RUNBOOK/ADRs/roadmap wire into the nav.
+- **Teaching notebooks rendered as executed notebooks on the site (ADR-0015).**
+  `scripts/render_notebooks.py` (+ a `Makefile` `docs-notebooks` target) executes the
+  `notebooks/*.py` sources locally against the real catalog (and live Ollama for `08`)
+  and writes pre-executed `.ipynb` to `docs/notebooks/`, which `mkdocs-jupyter` renders
+  with `execute: false` — CI never runs a notebook. A scoped exception to ADR-0014:
+  the `.py` percent script stays the source of truth; the committed `.ipynb` are a
+  generated publish artifact (`.gitignore` narrowed from `*.ipynb` to `notebooks/*.ipynb`).
+
+### Changed
+- **Renamed the project to `course-recommender-lab`** across the distribution name,
+  README/HANDOFF/RUNBOOK/roadmap titles, the package docstring, `CLAUDE.md`, and the
+  Docker image tag (was `course-rec-lab` / `course-rec-bert` / `course-rec-ui`). The
+  Python import package stays `courserec` (hyphens are illegal in module names).
+
 - **Teaching notebooks — ten step-by-step breakdowns under `notebooks/` (ADR-0014).**
   The teaching companion to the library: one notebook per technique family, each
   *reimplementing the method from primitives on the real catalog* (reusing the
@@ -420,8 +442,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
     (0.611) is **within the CI**, so semantic does not decisively beat lexical on
     this 22-query set. The larger MPNet did not beat MiniLM. Honest finding,
     pointing at a bigger/paraphrase-heavier query set and rerank (Phase 4).
-  - ADRs: [0003](docs/adr/0003-judged-query-lens.md) (judged-query lens),
-    [0004](docs/adr/0004-semantic-vectors.md) (semantic vectors, caching, ANN).
+  - ADRs: [0003](https://github.com/sandeep-jay/course-recommender-lab/blob/main/docs/adr/0003-judged-query-lens.md) (judged-query lens),
+    [0004](https://github.com/sandeep-jay/course-recommender-lab/blob/main/docs/adr/0004-semantic-vectors.md) (semantic vectors, caching, ANN).
 - **Phase 2 — topic models (LSA / NMF / LDA).**
   - `src/courserec/recommenders/topics.py` — three latent-topic rankers over a
     shared `_TopicRecommender` base: `LSARecommender` (TruncatedSVD on TF-IDF),

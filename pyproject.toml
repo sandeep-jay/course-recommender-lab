@@ -3,7 +3,7 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "course-rec-lab"
+name = "course-recommender-lab"
 version = "0.1.0"
 description = "A sandbox for learning content-based recommender systems on the UC Berkeley course catalog."
 readme = "README.md"
@@ -61,6 +61,16 @@ notebooks = [
     "nbconvert==7.17.1",
     "ipykernel==7.3.0",
     "matplotlib==3.11.0",
+]
+# Docs site — MkDocs Material published to GitHub Pages (ADR-0015). mkdocs-jupyter
+# renders the teaching notebooks as notebook pages; the site ships pre-executed
+# .ipynb under docs/notebooks/ so the build never runs a notebook. Mirror any change
+# here in requirements-docs.txt (the CI docs build installs from that file).
+# Enable with `pip install -e ".[docs]"`.
+docs = [
+    "mkdocs-material==9.5.49",
+    "mkdocs-jupyter==0.25.1",
+    "pymdown-extensions==10.14",
 ]
 
 [tool.setuptools.packages.find]

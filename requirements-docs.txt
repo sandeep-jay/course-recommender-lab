@@ -1,0 +1,11 @@
+# Docs toolchain — mirrors the [project.optional-dependencies] docs extra in
+# pyproject.toml. Keep the two in sync. Used by .github/workflows/docs.yml for a
+# fast, cache-keyed install (the docs build does not need the runtime deps).
+#
+# mkdocs-jupyter renders the notebooks/ teaching breakdowns as notebook pages.
+# The published site ships *pre-executed* .ipynb committed under docs/notebooks/
+# (generated locally by scripts/render_notebooks.py where the catalog + Ollama
+# exist), so the build never executes a notebook — it only renders (ADR-0015).
+mkdocs-material>=9.5,<10
+mkdocs-jupyter>=0.25,<0.26
+pymdown-extensions>=10.7,<11

@@ -1,4 +1,4 @@
-# course-rec-lab — Build Plan
+# course-recommender-lab — Build Plan
 
 A sandbox for learning recommender systems by implementing, documenting, and
 comparing **content-based** techniques on a university course catalog. No user
@@ -80,7 +80,7 @@ Rules:
 ### Repo layout
 
 ```
-course-rec-lab/
+course-recommender-lab/
   README.md
   PLAN.md                      # this file
   pyproject.toml               # pinned deps

@@ -65,8 +65,8 @@ runtime**, via a `Dockerfile` + `.dockerignore` + `.streamlit/config.toml`:
   Space can reuse this image as-is.
 
 ## Consequences
-**Positive.** `docker build -t course-rec-ui . && docker run -p 8501:8501
-course-rec-ui` yields a UI that starts warm and offline: course-to-course, Compare,
+**Positive.** `docker build -t course-recommender-lab . && docker run -p 8501:8501
+course-recommender-lab` yields a UI that starts warm and offline: course-to-course, Compare,
 Map, the Leaderboard, and free-text queries all work with no network and no
 first-load encode. CPU-only and `$PORT`-aware, so it runs on a laptop or a PaaS host
 unchanged. No application code changed — this is pure packaging over ADR-0012.

@@ -1,4 +1,4 @@
-# course-rec-bert — Claude Code Configuration
+# course-recommender-lab — Claude Code Configuration
 
 ## Project
 A sandbox for learning recommender systems by implementing, documenting, and

@@ -8,9 +8,9 @@
 # exception — its weights download on first use (graceful: slower, needs network).
 #
 # Build (from the repo root, with a warm data/processed + artifacts present):
-#   docker build -t course-rec-ui .
+#   docker build -t course-recommender-lab .
 # Run:
-#   docker run --rm -p 8501:8501 course-rec-ui
+#   docker run --rm -p 8501:8501 course-recommender-lab
 # Then open http://localhost:8501 . The image is CPU-only.
 
 FROM python:3.11-slim AS base

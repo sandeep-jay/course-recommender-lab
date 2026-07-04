@@ -1,4 +1,4 @@
-"""course-rec-lab: content-based course recommenders on the UC Berkeley catalog."""
+"""course-recommender-lab: content-based course recommenders on the UC Berkeley catalog."""
 
 from __future__ import annotations
 

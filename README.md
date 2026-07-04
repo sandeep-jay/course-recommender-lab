@@ -1,4 +1,4 @@
-# course-rec-lab
+# course-recommender-lab
 
 A sandbox for learning recommender systems by implementing, documenting, and
 comparing **content-based** techniques on the UC Berkeley course catalog
@@ -39,7 +39,7 @@ Or run the UI as a warm, offline Docker image (catalog + artifacts + MiniLM bake
 no first-load encode, CPU-only — [ADR-0013](docs/adr/0013-deploy-warm-docker-image.md)):
 
 ```bash
-docker build -t course-rec-ui . && docker run --rm -p 8501:8501 course-rec-ui  # http://localhost:8501
+docker build -t course-recommender-lab . && docker run --rm -p 8501:8501 course-recommender-lab  # http://localhost:8501
 ```
 
 The build `COPY`s the (gitignored) processed catalog + artifacts, so build from a repo

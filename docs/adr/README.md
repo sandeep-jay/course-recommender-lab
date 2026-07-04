@@ -18,3 +18,4 @@ One file per decision, format `NNNN-short-slug.md`. Write new ones with `/new-ad
 | [0012](0012-streamlit-ui.md) | Phase 8 minimal Streamlit UI — testable registry + thin view layer | Accepted | 2026-06-20 |
 | [0013](0013-deploy-warm-docker-image.md) | Deploy the UI as a warm, offline CPU Docker image | Accepted | 2026-06-20 |
 | [0014](0014-teaching-notebooks.md) | Teaching notebooks — reimplement-from-scratch over a tested library | Accepted | 2026-06-20 |
+| [0015](0015-docs-site.md) | Documentation site — MkDocs Material on GitHub Pages, with pre-executed notebooks | Accepted | 2026-07-04 |

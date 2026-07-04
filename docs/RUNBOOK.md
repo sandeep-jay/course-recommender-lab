@@ -1,4 +1,4 @@
-# Runbook — course-rec-lab
+# Runbook — course-recommender-lab
 
 How to run **everything** in this repo end-to-end: install tiers, the data pipeline,
 every script and its flags, every model (and how to get it), the Streamlit UI, the
@@ -169,8 +169,8 @@ projection, and the default MiniLM weights are all baked in, so the container st
 instantly with no first-load encode and no network.
 
 ```bash
-docker build -t course-rec-ui .                 # from the repo root
-docker run --rm -p 8501:8501 course-rec-ui      # then open http://localhost:8501
+docker build -t course-recommender-lab .                 # from the repo root
+docker run --rm -p 8501:8501 course-recommender-lab      # then open http://localhost:8501
 ```
 
 > **Prerequisite — a warm repo.** The build `COPY`s `data/processed/courses.parquet`
@@ -217,7 +217,7 @@ pytest --nbmake --nbmake-timeout=600 notebooks/*.ipynb
 > fast. Notebooks load fitted models from `artifacts/` (warm) and need the
 > `semantic` extra for `03`/`04`/`07`/`08` and a running Ollama for the live LLM
 > cells in `08` (which degrade gracefully when it's down). See
-> [notebooks/README.md](../notebooks/README.md) for the index.
+> [notebooks/README.md](https://github.com/sandeep-jay/course-recommender-lab/blob/main/notebooks/README.md) for the index.
 
 ---
 
