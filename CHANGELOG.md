@@ -5,6 +5,22 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ## [Unreleased]
 
+### Fixed
+- **Repaired the `.venv` broken by the `course-rec-bert` → `course-recommender-lab`
+  directory rename.** The editable install and every `.venv/bin/*` console-script
+  shebang still pointed at the vanished old path, so `import courserec` failed and
+  `pytest` couldn't collect. Reinstalled the editable package, rewrote the stale
+  absolute path across 49 venv files (`pip`, `pytest`, `ruff`, `black`, `activate*`,
+  `pyvenv.cfg`, …), and purged the orphaned `course_rec_lab` editable `.pth` +
+  dist-info left by an earlier rename. Interpreter symlink already resolved to pyenv,
+  so no dependency reinstall was needed. Suite back to **211 passed**.
+- **Restored the `ruff check .`-clean invariant, broken by the same rename/MkDocs
+  commit.** The lengthened package docstring in `src/courserec/__init__.py` pushed it
+  over the 88-char limit (E501) — shortened it. Excluded the *executed* notebook render
+  copies under `docs/notebooks/*.ipynb` (build artifacts of `make docs-notebooks`, not
+  hand-authored source) from ruff, extending the config's existing teaching-notebook
+  exclusion. `ruff check .` and `black --check .` are green again.
+
 ### Added
 - **Documentation site — MkDocs Material published to GitHub Pages (ADR-0015).**
   A navigable site matching the portfolio's two published repos: `mkdocs.yml`

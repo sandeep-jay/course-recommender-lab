@@ -92,7 +92,9 @@ extend-exclude = "notebooks/[0-9].*\\.py$"
 [tool.ruff]
 line-length = 88
 target-version = "py311"
-extend-exclude = ["notebooks/[0-9]*.py"]
+# Skip the jupytext teaching scripts and the executed notebook render copies under
+# docs/notebooks/ (build artifacts of `make docs-notebooks`, not hand-authored source).
+extend-exclude = ["notebooks/[0-9]*.py", "docs/notebooks/*.ipynb"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "D"]
