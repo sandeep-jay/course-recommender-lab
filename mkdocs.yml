@@ -104,6 +104,7 @@ extra:
 nav:
   - Home: index.md
   - Reviewer Guide: reviewer-guide.md
+  - The Data: data.md
   - Architecture: ARCHITECTURE.md
   - Results:
       - Results & Findings: RESULTS.md

@@ -5,6 +5,16 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ## [Unreleased]
 
+### Added
+- **"The Data" page on the docs site (`docs/data.md`)** — a learner-facing grounding of
+  the UC Berkeley course catalog the whole lab recommends over. Links the source catalog,
+  shows a real sample record (DATA C8) carried through the cleaning pipeline, the 8-field
+  schema (14 raw columns → 8 kept), and the four data quirks the loader handles (`"-"`
+  null token, quoted newlines, sparse text, duplicate ids). Explains the **cross-listing
+  ground truth** and the leakage rule via the four-way DATA/STAT/COMPSCI/INFO C8 twin.
+  All figures pulled from the real catalog (11,073 courses, 242 subjects, 1,080 twins).
+  Surfaced from the Home grid and the nav (Stage 1 of the learner-navigation pass).
+
 ### Fixed
 - **Repaired the `.venv` broken by the `course-rec-bert` → `course-recommender-lab`
   directory rename.** The editable install and every `.venv/bin/*` console-script

@@ -15,6 +15,9 @@ leaderboard**. The interesting results are the honest ones: three techniques tha
 - :material-flash-outline: **[Reviewer Guide](reviewer-guide.md)**
   The 5-minute tour — what this demonstrates, the headline results, where to look.
 
+- :material-database-outline: **[The Data](data.md)**
+  The UC Berkeley catalog itself — 11k courses, the schema, and the cross-listing ground truth.
+
 - :material-sitemap-outline: **[Architecture](ARCHITECTURE.md)**
   The one contract every technique implements and the three-lens eval that scores them.
 
